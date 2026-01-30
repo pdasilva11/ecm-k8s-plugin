@@ -1,38 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>dotnet-ExamplePlugin-a620ada8-83c6-4c7a-8df7-edda1c5e47af</UserSecretsId>
-    <RootNamespace>MyCompany.Integrations.ExamplePlugin</RootNamespace>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <UserSecretsId>dotnet-VaultPlugin-a620ada8-83c6-4c7a-8df7-edda1c5e47af</UserSecretsId>
+    <RootNamespace>MyCompany.Integrations.VaultPlugin</RootNamespace>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.2" />
-    <PackageReference Include="System.ComponentModel.Composition" Version="10.0.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="lib\" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="BeyondTrustECMSDK">
-      <HintPath>lib\BeyondTrustECMSDK.dll</HintPath>
-    </Reference>
-    <Reference Include="BeyondTrustECMService">
-      <HintPath>lib\BeyondTrustECMService.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
-    <Exec Command="xcopy /y &quot;$(ProjectDir)lib\*.dll&quot;  &quot;$(ProjectDir)$(OutDir)&quot;" />
-  </Target>
-  <Target Name="PostBuildLinux" AfterTargets="PostBuildEvent" Condition="'$(OS)' != 'Windows_NT'">
-    <Exec Command="cp -f $(ProjectDir)lib/*.dll $(ProjectDir)$(OutDir)" />
-  </Target>
 </Project>

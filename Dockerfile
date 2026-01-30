@@ -1,28 +1,27 @@
-# Build stage - Windows Server Core
-FROM mcr.microsoft.com/dotnet/sdk:8.0-windowsservercore-ltsc2022 AS build
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy project file and restore dependencies
+# Copy and restore
 COPY *.csproj ./
-COPY lib/ ./lib/
 RUN dotnet restore
 
-# Copy source code and build
+# Copy source and publish
 COPY . .
 RUN dotnet publish ExamplePlugin.csproj -c Release -o /app/publish --no-restore
 
-# Runtime stage - Windows Server Core
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-windowsservercore-ltsc2022 AS runtime
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 
-# Copy published app (includes most runtime dependencies)
+# Copy published app
 COPY --from=build /app/publish .
 
-# Copy all required DLLs - these provide compatibility with BeyondTrust SDK
-COPY lib/ .
-COPY DLL/ .
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD dotnet /app/ExamplePlugin.dll --health-check || exit 1
 
-# Disable console mode when running in container
-ENV DOTNET_RUNNING_IN_CONTAINER=true
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
 
 ENTRYPOINT ["dotnet", "ExamplePlugin.dll"]
