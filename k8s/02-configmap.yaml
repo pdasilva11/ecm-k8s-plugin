@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-service-config
+  namespace: vault-services
+  labels:
+    app: vault-credential-service
+data:
+  appsettings.json: |
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft": "Warning",
+          "Microsoft.AspNetCore": "Information"
+        }
+      },
+      "AllowedHosts": "*"
+    }

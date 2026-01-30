@@ -1,9 +1,33 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: default
+namespace: vault-services
 
+# Include all YAML files in deployment order
 resources:
-  - configmap.yaml
-  - secret.yaml
-  - deployment.yaml
+  - 01-namespace.yaml
+  - 02-configmap.yaml
+  - 03-secret.yaml
+  - 07-rbac.yaml
+  - 04-deployment.yaml
+  - 05-service.yaml
+  - 08-hpa.yaml
+  - 09-pdb.yaml
+  - 10-networkpolicy.yaml
+  - 06-ingress.yaml
+
+# Common labels applied to all resources
+commonLabels:
+  app: vault-credential-service
+  managed-by: kustomize
+  version: v1
+
+# Common annotations
+commonAnnotations:
+  description: "Vault Credential Injection Service for PRA"
+  documentation: "https://github.com/pdasilva11/ecm-k8s-plugin"
+
+# Image settings
+images:
+- name: pdasilva1/ecm-k8s-plugin
+  newTag: latest

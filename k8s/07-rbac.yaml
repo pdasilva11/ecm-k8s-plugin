@@ -1,0 +1,46 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-credential-service
+  namespace: vault-services
+  labels:
+    app: vault-credential-service
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-credential-service
+  namespace: vault-services
+  labels:
+    app: vault-credential-service
+rules:
+# Allow reading ConfigMaps
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+  resourceNames: ["vault-service-config"]
+
+# Allow reading Secrets
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+  resourceNames: ["vault-credentials"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-credential-service
+  namespace: vault-services
+  labels:
+    app: vault-credential-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-credential-service
+subjects:
+- kind: ServiceAccount
+  name: vault-credential-service
+  namespace: vault-services

@@ -1,0 +1,54 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vault-credential-service
+  namespace: vault-services
+  labels:
+    app: vault-credential-service
+spec:
+  podSelector:
+    matchLabels:
+      app: vault-credential-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from Ingress Controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow from same namespace
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow to Vault
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: vault
+    ports:
+    - protocol: TCP
+      port: 8200
+  # Allow to Kubernetes API
+  - to:
+    - podSelector:
+        matchLabels:
+          component: kube-apiserver
+    ports:
+    - protocol: TCP
+      port: 443
