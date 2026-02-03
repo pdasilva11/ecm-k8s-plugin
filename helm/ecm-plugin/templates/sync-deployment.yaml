@@ -1,0 +1,64 @@
+{{- if .Values.syncService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ecm-plugin.fullname" . }}-sync
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ecm-plugin.labels" . | nindent 4 }}
+    component: sync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ecm-plugin.selectorLabels" . | nindent 6 }}
+      component: sync
+  template:
+    metadata:
+      labels:
+        {{- include "ecm-plugin.selectorLabels" . | nindent 8 }}
+        component: sync
+    spec:
+      serviceAccountName: {{ include "ecm-plugin.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: vault-pra-sync
+        image: "{{ .Values.syncService.image.repository }}:{{ .Values.syncService.image.tag }}"
+        imagePullPolicy: {{ .Values.syncService.image.pullPolicy }}
+        env:
+        # PRA Configuration
+        - name: PRA_HOSTNAME
+          value: {{ .Values.app.ecm.sraSiteHostname | quote }}
+        - name: PRA_CLIENT_ID
+          value: {{ .Values.app.ecm.sraClientId | quote }}
+        - name: PRA_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ecm-plugin.fullname" . }}-credentials
+              key: sra-client-secret
+        # HashiCorp Vault Configuration
+        - name: VAULT_URL
+          value: {{ .Values.app.vault.baseUrl | quote }}
+        - name: VAULT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ecm-plugin.fullname" . }}-credentials
+              key: vault-username
+        - name: VAULT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ecm-plugin.fullname" . }}-credentials
+              key: vault-password
+        - name: VAULT_SECRETS_ENGINE
+          value: {{ .Values.app.vault.secretsEngine | quote }}
+        # Sync Configuration
+        - name: SYNC_MODE
+          value: {{ .Values.syncService.mode | quote }}
+        - name: SYNC_INTERVAL_SECONDS
+          value: {{ .Values.syncService.intervalSeconds | quote }}
+        resources:
+          {{- toYaml .Values.syncService.resources | nindent 10 }}
+{{- end }}
