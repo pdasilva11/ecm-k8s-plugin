@@ -27,6 +27,7 @@ local-*.yaml
 prod-*.yaml
 values-*.local.yaml
 *.tgz
+*.tar.gz
 
 # Kubernetes
 *.kubeconfig
