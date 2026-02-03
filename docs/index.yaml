@@ -2,8 +2,28 @@ apiVersion: v1
 entries:
   ecm-plugin:
   - apiVersion: v2
+    appVersion: 2.0.0
+    created: "2026-02-03T21:23:13.858779207Z"
+    description: A Helm chart for BeyondTrust ECM SDK Plugin with HashiCorp Vault
+    digest: a037176ce596ec9f2becc06ddfd02c9dcf7910ddffbf31e471b8705185a40f3f
+    home: https://github.com/pdasilva11/ecm-k8s-plugin
+    keywords:
+    - ecm
+    - vault
+    - credentials
+    - security
+    maintainers:
+    - name: ECM Team
+    name: ecm-plugin
+    sources:
+    - https://github.com/pdasilva11/ecm-k8s-plugin
+    type: application
+    urls:
+    - https://pdasilva11.github.io/ecm-k8s-plugin/ecm-plugin-2.0.0.tgz
+    version: 2.0.0
+  - apiVersion: v2
     appVersion: 1.0.0
-    created: "2026-02-03T13:43:21.083457455Z"
+    created: "2026-02-03T21:23:13.85724823Z"
     description: A Helm chart for ECM Kubernetes Plugin - Vault Credential Service
     digest: 5dfb0dc9a1f6ced7981f4057e361b9557881ff1fc13539792d42f1671e352773
     home: https://github.com/pdasilva11/ecm-k8s-plugin
@@ -21,4 +41,4 @@ entries:
     urls:
     - https://pdasilva11.github.io/ecm-k8s-plugin/ecm-plugin-1.1.0.tgz
     version: 1.1.0
-generated: "2026-02-03T13:43:21.081972006Z"
+generated: "2026-02-03T21:23:13.855645107Z"
