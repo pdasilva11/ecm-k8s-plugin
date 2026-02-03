@@ -99,6 +99,11 @@ app:
   environment: Production
   aspnetcoreUrls: "http://+:8080"
 
+  # PRA/ECM Configuration (BeyondTrust Privileged Remote Access)
+  ecm:
+    sraSiteHostname: "pra.yourcompany.com"
+    sraClientId: "REPLACE_WITH_ACTUAL_CLIENT_ID"
+
   vault:
     baseUrl: "https://vault.yourcompany.com:8200"
     secretsEngine: "secret"
@@ -149,5 +154,8 @@ strategy:
 # IMPORTANT: Override these with actual production values
 # Use --set or a separate secret file
 secrets:
+  # HashiCorp Vault credentials
   vaultUsername: "REPLACE_WITH_ACTUAL_USERNAME"
   vaultPassword: "REPLACE_WITH_ACTUAL_PASSWORD"
+  # BeyondTrust PRA/SRA credentials
+  sraClientSecret: "REPLACE_WITH_ACTUAL_PRA_CLIENT_SECRET"
