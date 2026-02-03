@@ -1,0 +1,56 @@
+# Minimal configuration for sync service deployment
+# This file enables only the sync service component
+
+# Disable main ECM plugin deployment for now
+replicaCount: 0
+
+# Application configuration
+app:
+  # PRA/ECM Configuration
+  ecm:
+    sraSiteHostname: "Site.beyondtrustcloud.com"
+    sraClientId: "SecretID"
+
+  # Vault configuration
+  vault:
+    baseUrl: "http://vault.vault.svc.cluster.local:8200"
+    secretsEngine: "AddSecretEngine"
+
+# Credentials
+secrets:
+  # HashiCorp Vault credentials
+  vaultUsername: "Username"
+  vaultPassword: "Password"
+
+  # BeyondTrust PRA/SRA credentials
+  sraClientSecret: "ClientSecret"
+
+# Sync Service Configuration
+syncService:
+  enabled: true
+  image:
+    repository: pdasilva1/vault-pra-sync
+    tag: "latest"
+    pullPolicy: Always  # Pull from Docker Hub
+  mode: "continuous"
+  intervalSeconds: 300
+  resources:
+    limits:
+      cpu: 100m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# Disable features not needed for sync service
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+ingress:
+  enabled: false
+
+networkPolicy:
+        enabled: false
