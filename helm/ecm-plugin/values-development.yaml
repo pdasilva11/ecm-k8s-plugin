@@ -50,6 +50,11 @@ app:
   environment: Development
   aspnetcoreUrls: "http://+:8080"
 
+  # PRA/ECM Configuration (BeyondTrust Privileged Remote Access)
+  ecm:
+    sraSiteHostname: "pra-dev.example.com"
+    sraClientId: "dev-client-id"
+
   vault:
     baseUrl: "http://vault.vault.svc.cluster.local:8200"
     secretsEngine: "secret"
@@ -96,5 +101,8 @@ strategy:
 
 # Development credentials (not for production!)
 secrets:
+  # HashiCorp Vault credentials
   vaultUsername: "dev-vault-user"
   vaultPassword: "dev-password-change-me"
+  # BeyondTrust PRA/SRA credentials
+  sraClientSecret: "dev-pra-client-secret"

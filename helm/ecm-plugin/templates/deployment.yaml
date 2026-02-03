@@ -58,6 +58,16 @@ spec:
               key: vault-password
         - name: VaultConfig__SecretsEngine
           value: {{ .Values.app.vault.secretsEngine | quote }}
+        # PRA/ECM Configuration
+        - name: ECMConfig__SRASiteHostname
+          value: {{ .Values.app.ecm.sraSiteHostname | quote }}
+        - name: ECMConfig__SRAClientId
+          value: {{ .Values.app.ecm.sraClientId | quote }}
+        - name: ECMConfig__SRAClientSecret
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ecm-plugin.fullname" . }}-credentials
+              key: sra-client-secret
         # Logging
         - name: Logging__LogLevel__Default
           value: {{ .Values.app.logging.logLevel.default | quote }}

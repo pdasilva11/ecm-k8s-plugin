@@ -124,6 +124,12 @@ app:
   environment: Production
   aspnetcoreUrls: "http://+:8080"
 
+  # PRA/ECM Configuration (BeyondTrust Privileged Remote Access)
+  ecm:
+    sraSiteHostname: "pra.example.com"
+    sraClientId: "your-pra-client-id"
+    # SRA Client Secret should be set in secrets section below
+
   # Vault configuration
   vault:
     baseUrl: "http://vault.vault.svc.cluster.local:8200"
@@ -211,5 +217,9 @@ configMap:
 # Secret data (base64 encoded or stringData)
 # IMPORTANT: Replace these values with your actual credentials
 secrets:
+  # HashiCorp Vault credentials
   vaultUsername: "vault-user"
   vaultPassword: "change-me-to-your-vault-password"
+
+  # BeyondTrust PRA/SRA credentials
+  sraClientSecret: "change-me-to-your-pra-client-secret"
