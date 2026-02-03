@@ -1,6 +1,7 @@
 using BeyondTrust.Integration.ECM.SDK.Model;
 using BeyondTrust.Integration.ECM.SDK.Plugin;
 using BeyondTrust.Integration.ECM.SDK.Util;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
