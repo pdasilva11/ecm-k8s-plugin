@@ -1,27 +1,48 @@
+using BeyondTrust.Integration.ECM.SDK;
+using BeyondTrust.Integration.ECM.SDK.Model;
+using BeyondTrust.Integration.ECM.SDK.Plugin;
+using BeyondTrust.Integration.ECM.SDK.Util;
 using MyCompany.Integrations.VaultPlugin;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = Host.CreateApplicationBuilder(args);
 
-// Setup logging
+// =========================================================================================================================================
+// Step #1: Setup logging and initialize the logger factory
+// -----------------------------------------------------------------------------------------------------------------------------------------
 builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
+builder.Logging.AddConsole();  // Console logging for container output
 
-// Register Vault service
-builder.Services.Configure<VaultConfig>(builder.Configuration.GetSection(nameof(VaultConfig)));
-builder.Services.AddSingleton<VaultService>();
+// Initialize the ECM logger factory
+builder.Services.AddSingleton<ECMLoggerFactory>();
+builder.Services.BuildServiceProvider().GetService<ECMLoggerFactory>();
 
-// Add Web API
-builder.Services.AddControllers();
+var _logger = ECMLoggerFactory.CreateLogger<Program>();
+_logger.LogInformation("Initializing HashiCorp Vault ECM Plugin and starting ECM Service");
+// -----------------------------------------------------------------------------------------------------------------------------------------
 
-var app = builder.Build();
+// =========================================================================================================================================
+// Step #2: Load plugin configuration and add the plugin
+// -----------------------------------------------------------------------------------------------------------------------------------------
+builder.Services.Configure<VaultPluginConfig>(builder.Configuration.GetSection(nameof(VaultPluginConfig)));
+builder.Services.AddSingleton<IECMPlugin, VaultECMPlugin>();
+_logger.LogInformation("Vault ECM Plugin configured");
+// -----------------------------------------------------------------------------------------------------------------------------------------
 
-// Configure middleware
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.MapControllers();
+// =========================================================================================================================================
+// Step #3: Load ECM service configuration and add the service
+// -----------------------------------------------------------------------------------------------------------------------------------------
+builder.Services.Configure<ECMConfig>(builder.Configuration.GetSection(nameof(ECMConfig)));
+builder.Services.AddSingleton<ECMServiceFactory>();
+builder.Services.AddHostedService(sp =>
+{
+    _logger.LogInformation("Creating ECM Service to connect to PRA");
+    return builder.Services.BuildServiceProvider()
+        .GetService<ECMServiceFactory>()!
+        .CreateECMService();
+});
+// -----------------------------------------------------------------------------------------------------------------------------------------
 
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
-logger.LogInformation("HashiCorp Vault Credential Injection Service starting...");
-logger.LogInformation("Service running on {Urls}", string.Join(", ", app.Urls));
+_logger.LogInformation("Starting HashiCorp Vault ECM Plugin Host");
 
-await app.RunAsync();
+var host = builder.Build();
+await host.RunAsync();

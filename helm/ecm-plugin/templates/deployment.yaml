@@ -34,31 +34,8 @@ spec:
       - name: vault-service
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        ports:
-        - name: http
-          containerPort: {{ .Values.service.targetPort }}
-          protocol: TCP
         env:
-        - name: ASPNETCORE_ENVIRONMENT
-          value: {{ .Values.app.environment | quote }}
-        - name: ASPNETCORE_URLS
-          value: {{ .Values.app.aspnetcoreUrls | quote }}
-        # Vault Configuration
-        - name: VaultConfig__BaseUrl
-          value: {{ .Values.app.vault.baseUrl | quote }}
-        - name: VaultConfig__Username
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "ecm-plugin.fullname" . }}-credentials
-              key: vault-username
-        - name: VaultConfig__Password
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "ecm-plugin.fullname" . }}-credentials
-              key: vault-password
-        - name: VaultConfig__SecretsEngine
-          value: {{ .Values.app.vault.secretsEngine | quote }}
-        # PRA/ECM Configuration
+        # BeyondTrust ECM Service Configuration
         - name: ECMConfig__SRASiteHostname
           value: {{ .Values.app.ecm.sraSiteHostname | quote }}
         - name: ECMConfig__SRAClientId
@@ -68,35 +45,26 @@ spec:
             secretKeyRef:
               name: {{ include "ecm-plugin.fullname" . }}-credentials
               key: sra-client-secret
+        # HashiCorp Vault Plugin Configuration
+        - name: VaultPluginConfig__VaultBaseUrl
+          value: {{ .Values.app.vault.baseUrl | quote }}
+        - name: VaultPluginConfig__VaultUsername
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ecm-plugin.fullname" . }}-credentials
+              key: vault-username
+        - name: VaultPluginConfig__VaultPassword
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "ecm-plugin.fullname" . }}-credentials
+              key: vault-password
+        - name: VaultPluginConfig__VaultSecretsEngine
+          value: {{ .Values.app.vault.secretsEngine | quote }}
         # Logging
         - name: Logging__LogLevel__Default
           value: {{ .Values.app.logging.logLevel.default | quote }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
-        {{- if .Values.probes.startup.enabled }}
-        startupProbe:
-          {{- toYaml .Values.probes.startup.httpGet | nindent 10 }}
-          initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
-          periodSeconds: {{ .Values.probes.startup.periodSeconds }}
-          timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
-          failureThreshold: {{ .Values.probes.startup.failureThreshold }}
-        {{- end }}
-        {{- if .Values.probes.liveness.enabled }}
-        livenessProbe:
-          {{- toYaml .Values.probes.liveness.httpGet | nindent 10 }}
-          initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
-          periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
-          timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
-          failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
-        {{- end }}
-        {{- if .Values.probes.readiness.enabled }}
-        readinessProbe:
-          {{- toYaml .Values.probes.readiness.httpGet | nindent 10 }}
-          initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
-          periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
-          timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
-          failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
-        {{- end }}
         volumeMounts:
         - name: config
           mountPath: /etc/config

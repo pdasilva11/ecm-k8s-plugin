@@ -2,7 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy and restore
+# Copy lib folder with ECM SDK DLLs
+COPY lib/ ./lib/
+
+# Copy project file and restore
 COPY *.csproj ./
 RUN dotnet restore
 
@@ -11,17 +14,17 @@ COPY . .
 RUN dotnet publish ExamplePlugin.csproj -c Release -o /app/publish --no-restore
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/runtime:8.0
 WORKDIR /app
+
+# Create non-root user
+RUN useradd -m -u 1000 ecm && chown -R ecm:ecm /app
+USER ecm
 
 # Copy published app
 COPY --from=build /app/publish .
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD dotnet /app/ExamplePlugin.dll --health-check || exit 1
+# Copy appsettings.json
+COPY appsettings.json .
 
-EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
-
-ENTRYPOINT ["dotnet", "ExamplePlugin.dll"]
+ENTRYPOINT ["dotnet", "VaultECMPlugin.dll"]
