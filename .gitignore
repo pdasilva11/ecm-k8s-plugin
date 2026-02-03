@@ -37,6 +37,7 @@ values-*.local.yaml
 
 # IDE
 .idea/
+.claude/
 *.swp
 *.bak
 *~
