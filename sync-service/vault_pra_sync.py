@@ -152,8 +152,8 @@ class VaultPRASync:
         try:
             logger.info(f"Creating PRA vault account: {name}")
 
-            # PRA API endpoint for vault accounts (POST /vault/account)
-            url = f"https://{self.pra_hostname}/api/config/vault/account"
+            # PRA API endpoint for vault accounts (POST /api/config/v1/vault/account)
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
 
             headers = {
                 'Authorization': f'Bearer {self.pra_token}',
@@ -191,7 +191,7 @@ class VaultPRASync:
     def get_pra_vault_account_id(self, name: str) -> Optional[int]:
         """Get vault account ID by name"""
         try:
-            url = f"https://{self.pra_hostname}/api/config/vault/account"
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
             headers = {'Authorization': f'Bearer {self.pra_token}'}
             params = {'name': name}
 
@@ -220,7 +220,7 @@ class VaultPRASync:
 
             logger.info(f"Updating PRA vault account ID {account_id}: {name}")
 
-            url = f"https://{self.pra_hostname}/api/config/vault/account/{account_id}"
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account/{account_id}"
 
             headers = {
                 'Authorization': f'Bearer {self.pra_token}',
