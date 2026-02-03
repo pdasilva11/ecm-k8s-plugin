@@ -33,13 +33,23 @@ cd helm
 
 # Create a secure values file
 cat > prod-secrets.yaml <<EOF
-secrets:
-  vaultUsername: "your-vault-username"
-  vaultPassword: "your-vault-password"
-
 app:
+  # BeyondTrust PRA Configuration
+  ecm:
+    sraSiteHostname: "pra.yourcompany.com"
+    sraClientId: "your-pra-client-id"
+
+  # HashiCorp Vault Configuration
   vault:
     baseUrl: "https://vault.yourcompany.com:8200"
+
+secrets:
+  # BeyondTrust PRA credentials
+  sraClientSecret: "your-pra-client-secret"
+
+  # HashiCorp Vault credentials
+  vaultUsername: "your-vault-username"
+  vaultPassword: "your-vault-password"
 
 ingress:
   hosts:

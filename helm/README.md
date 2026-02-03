@@ -48,8 +48,11 @@ helm repo update
 helm install ecm-plugin ecm-plugin/ecm-plugin \
   -n vault-services \
   --create-namespace \
-  --set secrets.vaultUsername=your-user \
-  --set secrets.vaultPassword=your-password
+  --set app.ecm.sraSiteHostname=pra.yourcompany.com \
+  --set app.ecm.sraClientId=your-pra-client-id \
+  --set secrets.sraClientSecret=your-pra-secret \
+  --set secrets.vaultUsername=your-vault-user \
+  --set secrets.vaultPassword=your-vault-password
 ```
 
 ### Method 2: Install from Local Source
@@ -67,8 +70,11 @@ helm install ecm-plugin ./ecm-plugin \
   -n vault-services \
   --create-namespace \
   -f ecm-plugin/values-production.yaml \
-  --set secrets.vaultUsername=your-user \
-  --set secrets.vaultPassword=your-password
+  --set app.ecm.sraSiteHostname=pra.yourcompany.com \
+  --set app.ecm.sraClientId=your-pra-client-id \
+  --set secrets.sraClientSecret=your-pra-secret \
+  --set secrets.vaultUsername=your-vault-user \
+  --set secrets.vaultPassword=your-vault-password
 ```
 
 See [QUICKSTART.md](QUICKSTART.md) for more examples.
@@ -169,15 +175,25 @@ resources:
     cpu: 250m
     memory: 512Mi
 
-# Vault Configuration
+# Application Configuration
 app:
+  # BeyondTrust PRA/SRA Configuration
+  ecm:
+    sraSiteHostname: "pra.yourcompany.com"
+    sraClientId: "your-pra-client-id"
+
+  # HashiCorp Vault Configuration
   vault:
     baseUrl: "https://vault.yourcompany.com:8200"
     secretsEngine: "secret"
 
 secrets:
-  vaultUsername: "your-username"
-  vaultPassword: "your-password"
+  # BeyondTrust PRA credentials
+  sraClientSecret: "your-pra-client-secret"
+
+  # HashiCorp Vault credentials
+  vaultUsername: "your-vault-username"
+  vaultPassword: "your-vault-password"
 
 # Ingress
 ingress:

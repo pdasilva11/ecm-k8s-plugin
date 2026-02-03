@@ -101,13 +101,23 @@ image:
   tag: "1.0.0"
 
 app:
+  # BeyondTrust PRA/SRA Configuration
+  ecm:
+    sraSiteHostname: "pra.yourcompany.com"
+    sraClientId: "your-pra-client-id"
+
+  # HashiCorp Vault Configuration
   vault:
     baseUrl: "https://vault.yourcompany.com:8200"
     secretsEngine: "secret"
 
 secrets:
+  # HashiCorp Vault credentials
   vaultUsername: "your-vault-username"
   vaultPassword: "your-vault-password"
+
+  # BeyondTrust PRA credentials
+  sraClientSecret: "your-pra-client-secret"
 
 ingress:
   enabled: true
@@ -157,20 +167,39 @@ helm install ecm-plugin ecm-plugin/ecm-plugin \
   --namespace production \
   --create-namespace \
   --values https://raw.githubusercontent.com/pdasilva11/ecm-k8s-plugin/main/helm/ecm-plugin/values-production.yaml \
+  --set app.ecm.sraSiteHostname=$PRA_HOSTNAME \
+  --set app.ecm.sraClientId=$PRA_CLIENT_ID \
+  --set secrets.sraClientSecret=$PRA_CLIENT_SECRET \
   --set secrets.vaultUsername=$VAULT_USERNAME \
   --set secrets.vaultPassword=$VAULT_PASSWORD
 ```
 
 ## Key Configuration Parameters
 
+### BeyondTrust PRA/SRA Configuration
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `app.ecm.sraSiteHostname` | BeyondTrust PRA hostname | `pra.example.com` |
+| `app.ecm.sraClientId` | PRA OAuth client ID | `your-pra-client-id` |
+| `secrets.sraClientSecret` | PRA OAuth client secret | Required |
+
+### HashiCorp Vault Configuration
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `app.vault.baseUrl` | Vault server URL | `http://vault.vault.svc.cluster.local:8200` |
+| `app.vault.secretsEngine` | Vault secrets engine path | `secret` |
+| `secrets.vaultUsername` | Vault username | `vault-user` |
+| `secrets.vaultPassword` | Vault password | Required |
+
+### General Configuration
+
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `replicaCount` | Number of pod replicas | `2` |
 | `image.repository` | Container image repository | `pdasilva1/ecm-k8s-plugin` |
 | `image.tag` | Container image tag | `latest` |
-| `app.vault.baseUrl` | Vault server URL | `http://vault.vault.svc.cluster.local:8200` |
-| `secrets.vaultUsername` | Vault username | `vault-user` |
-| `secrets.vaultPassword` | Vault password | Required |
 | `ingress.enabled` | Enable ingress | `true` |
 | `ingress.hosts` | Ingress hostnames | `vault-credentials.example.com` |
 | `autoscaling.enabled` | Enable HPA | `true` |
@@ -303,12 +332,21 @@ kubectl delete namespace vault-services
 #### Option 1: Use Environment Variables
 
 ```bash
-export VAULT_USERNAME="your-username"
-export VAULT_PASSWORD="your-password"
+# Set BeyondTrust PRA credentials
+export PRA_HOSTNAME="pra.yourcompany.com"
+export PRA_CLIENT_ID="your-pra-client-id"
+export PRA_CLIENT_SECRET="your-pra-client-secret"
+
+# Set HashiCorp Vault credentials
+export VAULT_USERNAME="your-vault-username"
+export VAULT_PASSWORD="your-vault-password"
 
 helm install ecm-plugin ecm-plugin/ecm-plugin \
   --namespace vault-services \
   --create-namespace \
+  --set app.ecm.sraSiteHostname=$PRA_HOSTNAME \
+  --set app.ecm.sraClientId=$PRA_CLIENT_ID \
+  --set secrets.sraClientSecret=$PRA_CLIENT_SECRET \
   --set secrets.vaultUsername=$VAULT_USERNAME \
   --set secrets.vaultPassword=$VAULT_PASSWORD
 ```
@@ -316,13 +354,19 @@ helm install ecm-plugin ecm-plugin/ecm-plugin \
 #### Option 2: Use Kubernetes Secrets
 
 ```bash
-# Create a secret manually
-kubectl create secret generic vault-credentials \
-  --from-literal=vault-username=your-username \
-  --from-literal=vault-password=your-password \
+# Create a secret manually with both PRA and Vault credentials
+kubectl create secret generic vault-credential-service-credentials \
+  --from-literal=vault-username=your-vault-username \
+  --from-literal=vault-password=your-vault-password \
+  --from-literal=sra-client-secret=your-pra-client-secret \
   --namespace vault-services
 
-# Reference in values.yaml or modify the chart templates
+# Then install chart with PRA hostname and client ID
+helm install ecm-plugin ecm-plugin/ecm-plugin \
+  --namespace vault-services \
+  --create-namespace \
+  --set app.ecm.sraSiteHostname="pra.yourcompany.com" \
+  --set app.ecm.sraClientId="your-pra-client-id"
 ```
 
 #### Option 3: Use External Secret Management
