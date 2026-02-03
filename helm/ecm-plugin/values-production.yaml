@@ -1,0 +1,153 @@
+# Production values for ecm-plugin
+# This file contains production-ready configurations
+
+replicaCount: 3
+
+image:
+  repository: pdasilva1/ecm-k8s-plugin
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"  # Use specific version tag in production
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  hosts:
+    - host: vault-api.yourcompany.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: vault-service-tls-prod
+      hosts:
+        - vault-api.yourcompany.com
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: production
+      ports:
+      - protocol: TCP
+        port: 8080
+  egress:
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 8200  # Vault
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 443
+      - protocol: TCP
+        port: 53
+      - protocol: UDP
+        port: 53
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      verbs: ["get", "list"]
+
+app:
+  environment: Production
+  aspnetcoreUrls: "http://+:8080"
+
+  vault:
+    baseUrl: "https://vault.yourcompany.com:8200"
+    secretsEngine: "secret"
+
+  logging:
+    logLevel:
+      default: "Information"
+      microsoft: "Warning"
+      microsoftAspNetCore: "Warning"
+
+probes:
+  startup:
+    enabled: true
+    httpGet:
+      path: /api/credentials/health
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 12
+
+  liveness:
+    enabled: true
+    httpGet:
+      path: /api/credentials/health
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readiness:
+    enabled: true
+    httpGet:
+      path: /api/credentials/health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# IMPORTANT: Override these with actual production values
+# Use --set or a separate secret file
+secrets:
+  vaultUsername: "REPLACE_WITH_ACTUAL_USERNAME"
+  vaultPassword: "REPLACE_WITH_ACTUAL_PASSWORD"

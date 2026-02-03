@@ -1,0 +1,48 @@
+# Build outputs
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+.vscode/
+
+# Helm
+# Ignore local values files with secrets
+*-secrets.yaml
+local-*.yaml
+prod-*.yaml
+values-*.local.yaml
+*.tgz
+
+# Kubernetes
+*.kubeconfig
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+*.swp
+*.bak
+*~
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/

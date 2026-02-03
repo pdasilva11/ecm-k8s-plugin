@@ -1,0 +1,16 @@
+apiVersion: v2
+name: ecm-plugin
+description: A Helm chart for ECM Kubernetes Plugin - Vault Credential Service
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - ecm
+  - vault
+  - credentials
+  - security
+maintainers:
+  - name: ECM Team
+home: https://github.com/pdasilva11/ecm-k8s-plugin
+sources:
+  - https://github.com/pdasilva11/ecm-k8s-plugin
