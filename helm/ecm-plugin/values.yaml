@@ -223,3 +223,20 @@ secrets:
 
   # BeyondTrust PRA/SRA credentials
   sraClientSecret: "change-me-to-your-pra-client-secret"
+
+# Sync Service Configuration
+syncService:
+  enabled: false  # Set to true to enable vault-to-PRA sync
+  image:
+    repository: pdasilva1/vault-pra-sync
+    tag: "latest"
+    pullPolicy: Always
+  mode: "continuous"  # Options: "continuous" or "once"
+  intervalSeconds: 300  # Sync every 5 minutes
+  resources:
+    limits:
+      cpu: 100m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
