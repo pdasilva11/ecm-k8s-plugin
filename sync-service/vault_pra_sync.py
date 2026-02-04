@@ -197,23 +197,6 @@ class VaultPRASync:
             logger.error(f"Failed to retrieve secret {secret_path}: {e}")
             return None
 
-    def needs_sync(self, secret_path: str, metadata: Dict) -> bool:
-        """Check if secret needs to be synced based on metadata"""
-        if secret_path not in self.sync_state:
-            logger.info(f"  → New secret detected: {secret_path}")
-            return True
-
-        last_synced = self.sync_state[secret_path]
-        current_version = metadata.get('version')
-        last_version = last_synced.get('version')
-
-        if current_version != last_version:
-            logger.info(f"  → Version changed: {secret_path} (v{last_version} → v{current_version})")
-            return True
-
-        logger.debug(f"  → No changes: {secret_path} (v{current_version})")
-        return False
-
     def get_pra_vault_accounts(self) -> List[Dict]:
         """Get all vault accounts from PRA"""
         try:
@@ -253,27 +236,8 @@ class VaultPRASync:
             return False
 
     def create_pra_vault_account(self, name: str, username: str, password: str) -> bool:
-        """Create account in PRA vault (deletes existing if present)"""
+        """Create account in PRA vault"""
         try:
-            # Step 1: Check if account already exists
-            logger.debug(f"Checking if account '{name}' exists in PRA vault...")
-            existing_accounts = self.get_pra_vault_accounts()
-
-            # Find account with matching name
-            matching_account = next((acc for acc in existing_accounts if acc.get('name') == name), None)
-
-            if matching_account:
-                account_id = matching_account.get('id')
-                logger.info(f"Account '{name}' exists (ID: {account_id}), deleting before recreating...")
-
-                # Step 2: Delete existing account
-                if not self.delete_pra_vault_account(account_id, name):
-                    logger.error(f"Failed to delete existing account '{name}', cannot create new one")
-                    return False
-
-            # Step 3: Create new account
-            logger.info(f"Creating PRA vault account: {name}")
-
             url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
 
             headers = {
@@ -294,7 +258,11 @@ class VaultPRASync:
             response = requests.post(url, json=payload, headers=headers, timeout=30)
 
             if response.status_code == 201:
-                logger.info(f"Successfully created PRA vault account: {name}")
+                logger.info(f"✓ Successfully created PRA vault account: {name}")
+                return True
+            elif response.status_code == 422:
+                # Account already exists (race condition or manual creation)
+                logger.warning(f"Account {name} already exists in PRA (422), skipping")
                 return True
             else:
                 logger.error(f"Failed to create PRA account {name}: {response.status_code} - {response.text}")
@@ -305,7 +273,7 @@ class VaultPRASync:
             return False
 
     def sync_once(self) -> bool:
-        """Perform one sync operation"""
+        """Perform one sync operation - scan and sync missing accounts"""
         logger.info("=" * 60)
         logger.info("Starting Vault → PRA sync")
         logger.info("=" * 60)
@@ -319,39 +287,44 @@ class VaultPRASync:
             logger.error("PRA authentication failed, skipping sync")
             return False
 
-        # Get list of secrets from Vault
-        secret_paths = self.list_vault_secrets()
+        # Step 1: Get all accounts currently in PRA vault
+        logger.info("Scanning PRA vault for existing accounts...")
+        pra_accounts = self.get_pra_vault_accounts()
+        pra_account_names = set([acc.get('name') for acc in pra_accounts if acc.get('name')])
+        logger.info(f"Found {len(pra_account_names)} accounts in PRA vault: {sorted(pra_account_names)}")
 
-        if not secret_paths:
-            logger.warning("No secrets to sync")
+        # Step 2: Get all secrets from HashiCorp Vault
+        logger.info("Scanning HashiCorp Vault for secrets...")
+        vault_secret_paths = self.list_vault_secrets()
+
+        if not vault_secret_paths:
+            logger.warning("No secrets found in Vault")
             return True
 
-        # Sync each secret to PRA
+        vault_secret_names = set(vault_secret_paths)
+        logger.info(f"Found {len(vault_secret_names)} secrets in Vault: {sorted(vault_secret_names)}")
+
+        # Step 3: Find secrets that exist in Vault but NOT in PRA
+        missing_in_pra = vault_secret_names - pra_account_names
+
+        if not missing_in_pra:
+            logger.info("✓ All Vault secrets are already present in PRA - nothing to sync")
+            logger.info("=" * 60)
+            return True
+
+        logger.info(f"Found {len(missing_in_pra)} accounts missing in PRA: {sorted(missing_in_pra)}")
+        logger.info("Syncing missing accounts to PRA...")
+
+        # Step 4: Sync only the missing accounts to PRA
         success_count = 0
         fail_count = 0
-        skipped_count = 0
 
-        logger.info(f"Checking {len(secret_paths)} secrets for changes...")
-
-        for secret_path in secret_paths:
-            # Get metadata first to check if sync is needed
-            metadata = self.get_vault_secret_metadata(secret_path)
-
-            if not metadata:
-                logger.warning(f"Skipping {secret_path}: no metadata")
-                fail_count += 1
-                continue
-
-            # Check if secret needs to be synced
-            if not self.needs_sync(secret_path, metadata):
-                skipped_count += 1
-                continue
-
-            # Get the actual secret data
+        for secret_path in sorted(missing_in_pra):
+            # Get the secret data from Vault
             secret_data = self.get_vault_secret(secret_path)
 
             if not secret_data:
-                logger.warning(f"Skipping {secret_path}: no data")
+                logger.warning(f"Skipping {secret_path}: no data in Vault")
                 fail_count += 1
                 continue
 
@@ -363,13 +336,17 @@ class VaultPRASync:
                 fail_count += 1
                 continue
 
+            # Create account in PRA (this will not delete existing since it's missing)
+            logger.info(f"Creating missing account in PRA: {secret_path}")
             if self.create_pra_vault_account(secret_path, username, password):
                 # Update sync state with current metadata
-                self.sync_state[secret_path] = {
-                    'version': metadata.get('version'),
-                    'updated_time': metadata.get('updated_time'),
-                    'last_synced': time.time()
-                }
+                metadata = self.get_vault_secret_metadata(secret_path)
+                if metadata:
+                    self.sync_state[secret_path] = {
+                        'version': metadata.get('version'),
+                        'updated_time': metadata.get('updated_time'),
+                        'last_synced': time.time()
+                    }
                 success_count += 1
             else:
                 fail_count += 1
@@ -378,7 +355,7 @@ class VaultPRASync:
         self._save_sync_state()
 
         logger.info("=" * 60)
-        logger.info(f"Sync complete: {success_count} synced, {skipped_count} unchanged, {fail_count} failed")
+        logger.info(f"Sync complete: {success_count} created, {fail_count} failed")
         logger.info("=" * 60)
 
         return fail_count == 0
