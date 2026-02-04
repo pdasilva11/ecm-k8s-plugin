@@ -10,7 +10,7 @@ app:
   ecm:
     sraSiteHostname: "Site.beyondtrustcloud.com"
     sraClientId: "SecretID"
-    accountGroup: "Default"  # PRA account group name or ID
+    accountGroup: "Paul_group"  # PRA account group name or ID (Group ID: 2)
 
   # Vault configuration
   vault:
