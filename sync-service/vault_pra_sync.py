@@ -9,6 +9,7 @@ import sys
 import time
 import logging
 import requests
+import json
 from typing import List, Dict, Optional
 
 # Configure logging
@@ -34,9 +35,11 @@ class VaultPRASync:
 
         # Sync Configuration
         self.sync_interval = int(os.getenv('SYNC_INTERVAL_SECONDS', '300'))  # 5 minutes default
+        self.state_file = os.getenv('SYNC_STATE_FILE', '/tmp/sync_state.json')
 
         self.pra_token = None
         self.vault_token = None
+        self.sync_state = self._load_sync_state()
 
         self._validate_config()
 
@@ -45,6 +48,27 @@ class VaultPRASync:
         if not self.pra_client_id or not self.pra_client_secret:
             raise ValueError("PRA_CLIENT_ID and PRA_CLIENT_SECRET are required")
         logger.info("Configuration validated successfully")
+
+    def _load_sync_state(self) -> Dict[str, Dict]:
+        """Load sync state from file"""
+        try:
+            if os.path.exists(self.state_file):
+                with open(self.state_file, 'r') as f:
+                    state = json.load(f)
+                    logger.info(f"Loaded sync state for {len(state)} secrets")
+                    return state
+        except Exception as e:
+            logger.warning(f"Failed to load sync state: {e}")
+        return {}
+
+    def _save_sync_state(self):
+        """Save sync state to file"""
+        try:
+            with open(self.state_file, 'w') as f:
+                json.dump(self.sync_state, f, indent=2)
+            logger.debug(f"Saved sync state for {len(self.sync_state)} secrets")
+        except Exception as e:
+            logger.error(f"Failed to save sync state: {e}")
 
     def authenticate_to_pra(self) -> bool:
         """Authenticate to PRA using OAuth client credentials"""
@@ -128,6 +152,32 @@ class VaultPRASync:
             logger.error(f"Failed to list Vault secrets: {e}")
             return []
 
+    def get_vault_secret_metadata(self, secret_path: str) -> Optional[Dict]:
+        """Get metadata for a secret from Vault (version, modified time, etc.)"""
+        try:
+            url = f"{self.vault_url}/v1/{self.vault_secrets_engine}/metadata/{secret_path}"
+            headers = {'X-Vault-Token': self.vault_token}
+
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+
+            data = response.json()
+            metadata = data.get('data', {})
+
+            # Extract current version and updated time
+            current_version = metadata.get('current_version')
+            updated_time = metadata.get('updated_time')
+
+            logger.debug(f"Metadata for {secret_path}: version={current_version}, updated={updated_time}")
+            return {
+                'version': current_version,
+                'updated_time': updated_time
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get metadata for {secret_path}: {e}")
+            return None
+
     def get_vault_secret(self, secret_path: str) -> Optional[Dict]:
         """Retrieve a specific secret from Vault"""
         try:
@@ -146,6 +196,23 @@ class VaultPRASync:
         except Exception as e:
             logger.error(f"Failed to retrieve secret {secret_path}: {e}")
             return None
+
+    def needs_sync(self, secret_path: str, metadata: Dict) -> bool:
+        """Check if secret needs to be synced based on metadata"""
+        if secret_path not in self.sync_state:
+            logger.info(f"  → New secret detected: {secret_path}")
+            return True
+
+        last_synced = self.sync_state[secret_path]
+        current_version = metadata.get('version')
+        last_version = last_synced.get('version')
+
+        if current_version != last_version:
+            logger.info(f"  → Version changed: {secret_path} (v{last_version} → v{current_version})")
+            return True
+
+        logger.debug(f"  → No changes: {secret_path} (v{current_version})")
+        return False
 
     def create_pra_vault_account(self, name: str, username: str, password: str) -> bool:
         """Create or update account in PRA vault"""
@@ -274,8 +341,25 @@ class VaultPRASync:
         # Sync each secret to PRA
         success_count = 0
         fail_count = 0
+        skipped_count = 0
+
+        logger.info(f"Checking {len(secret_paths)} secrets for changes...")
 
         for secret_path in secret_paths:
+            # Get metadata first to check if sync is needed
+            metadata = self.get_vault_secret_metadata(secret_path)
+
+            if not metadata:
+                logger.warning(f"Skipping {secret_path}: no metadata")
+                fail_count += 1
+                continue
+
+            # Check if secret needs to be synced
+            if not self.needs_sync(secret_path, metadata):
+                skipped_count += 1
+                continue
+
+            # Get the actual secret data
             secret_data = self.get_vault_secret(secret_path)
 
             if not secret_data:
@@ -292,12 +376,21 @@ class VaultPRASync:
                 continue
 
             if self.create_pra_vault_account(secret_path, username, password):
+                # Update sync state with current metadata
+                self.sync_state[secret_path] = {
+                    'version': metadata.get('version'),
+                    'updated_time': metadata.get('updated_time'),
+                    'last_synced': time.time()
+                }
                 success_count += 1
             else:
                 fail_count += 1
 
+        # Save sync state after processing all secrets
+        self._save_sync_state()
+
         logger.info("=" * 60)
-        logger.info(f"Sync complete: {success_count} success, {fail_count} failed")
+        logger.info(f"Sync complete: {success_count} synced, {skipped_count} unchanged, {fail_count} failed")
         logger.info("=" * 60)
 
         return fail_count == 0
