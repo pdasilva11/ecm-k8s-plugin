@@ -214,12 +214,66 @@ class VaultPRASync:
         logger.debug(f"  → No changes: {secret_path} (v{current_version})")
         return False
 
-    def create_pra_vault_account(self, name: str, username: str, password: str) -> bool:
-        """Create or update account in PRA vault"""
+    def get_pra_vault_accounts(self) -> List[Dict]:
+        """Get all vault accounts from PRA"""
         try:
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
+            headers = {'Authorization': f'Bearer {self.pra_token}'}
+
+            response = requests.get(url, headers=headers, timeout=30)
+            response.raise_for_status()
+
+            accounts = response.json()
+            logger.debug(f"Retrieved {len(accounts)} accounts from PRA vault")
+            return accounts
+
+        except Exception as e:
+            logger.error(f"Error getting PRA vault accounts: {e}")
+            return []
+
+    def delete_pra_vault_account(self, account_id: int, account_name: str) -> bool:
+        """Delete a vault account from PRA by ID"""
+        try:
+            logger.info(f"Deleting existing PRA vault account: {account_name} (ID: {account_id})")
+
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account/{account_id}"
+            headers = {'Authorization': f'Bearer {self.pra_token}'}
+
+            response = requests.delete(url, headers=headers, timeout=30)
+
+            if response.status_code in [200, 204]:
+                logger.info(f"Successfully deleted PRA vault account: {account_name}")
+                return True
+            else:
+                logger.error(f"Failed to delete PRA account {account_name}: {response.status_code} - {response.text}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error deleting PRA vault account {account_name}: {e}")
+            return False
+
+    def create_pra_vault_account(self, name: str, username: str, password: str) -> bool:
+        """Create account in PRA vault (deletes existing if present)"""
+        try:
+            # Step 1: Check if account already exists
+            logger.debug(f"Checking if account '{name}' exists in PRA vault...")
+            existing_accounts = self.get_pra_vault_accounts()
+
+            # Find account with matching name
+            matching_account = next((acc for acc in existing_accounts if acc.get('name') == name), None)
+
+            if matching_account:
+                account_id = matching_account.get('id')
+                logger.info(f"Account '{name}' exists (ID: {account_id}), deleting before recreating...")
+
+                # Step 2: Delete existing account
+                if not self.delete_pra_vault_account(account_id, name):
+                    logger.error(f"Failed to delete existing account '{name}', cannot create new one")
+                    return False
+
+            # Step 3: Create new account
             logger.info(f"Creating PRA vault account: {name}")
 
-            # PRA API endpoint for vault accounts (POST /api/config/v1/vault/account)
             url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
 
             headers = {
@@ -242,78 +296,12 @@ class VaultPRASync:
             if response.status_code == 201:
                 logger.info(f"Successfully created PRA vault account: {name}")
                 return True
-            elif response.status_code == 422:
-                # Account already exists, try to update it
-                error_data = response.json()
-                logger.info(f"Account {name} may exist (422), checking: {error_data}")
-                return self.update_pra_vault_account(name, username, password)
             else:
                 logger.error(f"Failed to create PRA account {name}: {response.status_code} - {response.text}")
                 return False
 
         except Exception as e:
             logger.error(f"Error creating PRA vault account {name}: {e}")
-            return False
-
-    def get_pra_vault_account_id(self, name: str) -> Optional[int]:
-        """Get vault account ID by name"""
-        try:
-            url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
-            headers = {'Authorization': f'Bearer {self.pra_token}'}
-            params = {'name': name}
-
-            response = requests.get(url, headers=headers, params=params, timeout=30)
-            response.raise_for_status()
-
-            accounts = response.json()
-            if accounts and len(accounts) > 0:
-                return accounts[0].get('id')
-
-            return None
-
-        except Exception as e:
-            logger.error(f"Error getting PRA account ID for {name}: {e}")
-            return None
-
-    def update_pra_vault_account(self, name: str, username: str, password: str) -> bool:
-        """Update existing account in PRA vault"""
-        try:
-            # Get account ID first
-            account_id = self.get_pra_vault_account_id(name)
-
-            if not account_id:
-                logger.warning(f"Account {name} not found for update, skipping")
-                return False
-
-            logger.info(f"Updating PRA vault account ID {account_id}: {name}")
-
-            url = f"https://{self.pra_hostname}/api/config/v1/vault/account/{account_id}"
-
-            headers = {
-                'Authorization': f'Bearer {self.pra_token}',
-                'Content-Type': 'application/json'
-            }
-
-            # Payload for update (PUT /vault/account/{id})
-            payload = {
-                'type': 'username_password',
-                'name': name,
-                'username': username,
-                'password': password,
-                'description': f'Synced from HashiCorp Vault (updated)'
-            }
-
-            response = requests.put(url, json=payload, headers=headers, timeout=30)
-
-            if response.status_code in [200, 204]:
-                logger.info(f"Successfully updated PRA account: {name}")
-                return True
-            else:
-                logger.error(f"Failed to update PRA account {name}: {response.status_code} - {response.text}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Error updating PRA vault account {name}: {e}")
             return False
 
     def sync_once(self) -> bool:
