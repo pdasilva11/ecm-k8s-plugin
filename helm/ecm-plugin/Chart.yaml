@@ -1,9 +1,9 @@
 apiVersion: v2
 name: ecm-plugin
-description: A Helm chart for BeyondTrust ECM SDK Plugin with HashiCorp Vault
+description: HashiCorp Vault to BeyondTrust PRA Sync Service - Intelligent credential synchronization with change detection
 type: application
-version: 2.0.0
-appVersion: "2.0.0"
+version: 2.1.0
+appVersion: "2.1.0"
 keywords:
   - ecm
   - vault

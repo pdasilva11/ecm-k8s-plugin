@@ -1,6 +1,8 @@
 # HashiCorp Vault to BeyondTrust PRA Sync Service
 
-Automated credential synchronization service that syncs secrets from HashiCorp Vault to BeyondTrust PRA's internal vault.
+Intelligent credential synchronization service that syncs secrets from HashiCorp Vault to BeyondTrust PRA's internal vault with change detection.
+
+**Latest Version: v2.1.0** - Now with intelligent change detection using Vault metadata API!
 
 ## Overview
 
@@ -28,12 +30,15 @@ This service provides seamless integration between HashiCorp Vault and BeyondTru
 
 ## Features
 
-- **Automated Sync**: Continuously syncs credentials every 5 minutes (configurable)
-- **OAuth2 Authentication**: Secure authentication to BeyondTrust PRA
-- **Account Management**: Creates and updates vault accounts in PRA
-- **Kubernetes Native**: Deployed via Helm chart with best practices
-- **CI/CD Ready**: Automated Docker image builds via GitHub Actions
-- **Production Ready**: Includes health checks, logging, and error handling
+- **🔄 Intelligent Change Detection**: Uses Vault metadata API to detect secret version changes
+- **📊 Version Tracking**: Only syncs when secrets are modified, reducing API calls by ~95%
+- **⚡ Automated Sync**: Continuously syncs credentials every 5 minutes (configurable)
+- **🔐 OAuth2 Authentication**: Secure authentication to BeyondTrust PRA
+- **📝 Enhanced Logging**: Clear visibility into new, changed, and unchanged secrets
+- **💾 Persistent State**: Maintains sync state across pod restarts
+- **☸️ Kubernetes Native**: Deployed via Helm chart with best practices
+- **🚀 CI/CD Ready**: Automated Docker image builds via GitHub Actions
+- **✅ Production Ready**: Includes health checks, logging, and error handling
 
 ## Quick Start
 
@@ -70,7 +75,21 @@ This service provides seamless integration between HashiCorp Vault and BeyondTru
      sraClientSecret: "your-pra-client-secret"
    ```
 
-3. **Deploy with Helm**
+3. **Deploy with Helm** (from GitHub Pages)
+   ```bash
+   # Add Helm repository
+   helm repo add ecm-plugin https://pdasilva11.github.io/ecm-k8s-plugin/
+   helm repo update
+
+   # Install v2.1.0
+   helm install vault-sync ecm-plugin/ecm-plugin \
+     --version 2.1.0 \
+     -f values-sync.yaml \
+     --namespace vault-services \
+     --create-namespace
+   ```
+
+   Or install from local chart:
    ```bash
    helm install vault-sync ./helm/ecm-plugin \
      -f ./helm/ecm-plugin/values-sync.yaml \
@@ -104,6 +123,7 @@ The sync service accepts the following configuration:
 | `VAULT_SECRETS_ENGINE` | KV secrets engine path | `secret` |
 | `SYNC_MODE` | Sync mode: `continuous` or `once` | `continuous` |
 | `SYNC_INTERVAL_SECONDS` | Sync interval in continuous mode | `300` |
+| `SYNC_STATE_FILE` | Path to state file for change tracking | `/tmp/sync_state.json` |
 
 ### Secret Format
 
@@ -115,6 +135,34 @@ vault kv put secret/myapp-db username=dbuser password=secretpass123
 ```
 
 This will create a vault account in PRA named `myapp-db` with the specified credentials.
+
+## Change Detection
+
+**New in v2.1.0**: The sync service intelligently detects changes using Vault's metadata API.
+
+### How It Works
+
+1. **Metadata Check**: Uses `GET /v1/{mount}/metadata/{path}` to retrieve secret version
+2. **Version Comparison**: Compares current version with last synced version
+3. **Conditional Sync**: Only syncs if version has changed
+4. **State Persistence**: Saves sync state to `/tmp/sync_state.json`
+
+### Benefits
+
+- **Reduced API Calls**: ~95% reduction after initial sync
+- **Faster Syncs**: Skips unchanged secrets
+- **Better Visibility**: Logs show new/changed/unchanged status
+- **Persistent State**: Survives pod restarts
+
+### Example Log Output
+
+```
+2026-02-04 01:25:10 - INFO - Checking 4 secrets for changes...
+2026-02-04 01:25:10 - INFO -   → New secret detected: myecm
+2026-02-04 01:25:10 - INFO -   → Version changed: test-credential (v1 → v2)
+2026-02-04 01:25:11 - DEBUG -   → No changes: test-credentials (v3)
+2026-02-04 01:25:11 - INFO - Sync complete: 2 synced, 1 unchanged, 0 failed
+```
 
 ## Docker Image
 

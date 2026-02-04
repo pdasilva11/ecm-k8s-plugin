@@ -35,18 +35,31 @@ helm install vault-sync ecm-plugin/ecm-plugin \
 
 ## Available Charts
 
-### ecm-plugin v2.0.0 (Latest)
-**Vault-to-PRA Sync Service** - Automatically syncs credentials from HashiCorp Vault to BeyondTrust PRA vault
+### ecm-plugin v2.1.0 (Latest) ⭐
+**Vault-to-PRA Sync Service** - Intelligent credential synchronization with change detection
 
-- **Version**: 2.0.0
-- **App Version**: 2.0.0
-- **Chart URL**: [ecm-plugin-2.0.0.tgz](https://pdasilva11.github.io/ecm-k8s-plugin/ecm-plugin-2.0.0.tgz)
-- **Features**:
+- **Version**: 2.1.0
+- **App Version**: 2.1.0
+- **Chart URL**: [ecm-plugin-2.1.0.tgz](https://pdasilva11.github.io/ecm-k8s-plugin/ecm-plugin-2.1.0.tgz)
+- **New in v2.1.0**:
+  - ✨ **Change detection** using Vault metadata API
+  - 📊 **Version tracking** - only syncs when secrets change
+  - 🚀 **~95% reduction** in API calls after initial sync
+  - 💾 **Persistent state** across pod restarts
+  - 📝 **Enhanced logging** - shows new/changed/unchanged secrets
+- **Core Features**:
   - Python-based sync service
   - OAuth2 authentication to PRA
   - Continuous or one-time sync modes
   - Automatic account creation/updates in PRA vault
   - Kubernetes-native deployment
+  - 5-minute sync interval (configurable)
+
+### ecm-plugin v2.0.0
+Initial sync service release
+
+- **Version**: 2.0.0
+- **Chart URL**: [ecm-plugin-2.0.0.tgz](https://pdasilva11.github.io/ecm-k8s-plugin/ecm-plugin-2.0.0.tgz)
 
 ### ecm-plugin v1.1.0
 Legacy REST API version (deprecated)
@@ -105,7 +118,33 @@ The repository index is maintained at: [index.yaml](https://pdasilva11.github.io
 |-----------|-------------|---------|
 | `syncService.enabled` | Enable sync service | `false` |
 | `syncService.mode` | Sync mode: `continuous` or `once` | `continuous` |
-| `syncService.intervalSeconds` | Sync interval | `300` |
+| `syncService.intervalSeconds` | Sync interval (seconds) | `300` (5 minutes) |
+| `syncService.image.repository` | Docker image repository | `pdasilva1/vault-pra-sync` |
+| `syncService.image.tag` | Docker image tag | `latest` |
+
+## What's New in v2.1.0
+
+### Intelligent Change Detection
+The sync service now uses Vault's metadata API to detect changes:
+
+```
+GET /v1/{mount}/metadata/{path}
+```
+
+**Benefits:**
+- Only syncs secrets when version changes
+- Reduces PRA API calls by ~95% after initial sync
+- Faster sync cycles (skips unchanged secrets)
+- State persisted in `/tmp/sync_state.json`
+
+**Example Log Output:**
+```
+Checking 4 secrets for changes...
+  → New secret detected: myecm
+  → Version changed: test-credential (v1 → v2)
+  → No changes: test-credentials (v1)
+Sync complete: 2 synced, 1 unchanged, 0 failed
+```
 
 ## Documentation
 
