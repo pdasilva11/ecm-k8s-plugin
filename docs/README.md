@@ -19,18 +19,30 @@ helm search repo ecm-plugin
 
 ### Install the Sync Service
 
+**Install using --set flags:**
 ```bash
 # Install with sync service enabled
 helm install vault-sync ecm-plugin/ecm-plugin \
-  -f https://raw.githubusercontent.com/pdasilva11/ecm-k8s-plugin/main/helm/ecm-plugin/values-sync.yaml \
+  --version 2.1.0 \
   --namespace vault-services \
   --create-namespace \
-  --set app.ecm.sraSiteHostname=your-pra-instance.beyondtrustcloud.com \
-  --set app.ecm.sraClientId=your-oauth-client-id \
-  --set secrets.sraClientSecret=your-pra-client-secret \
-  --set app.vault.baseUrl=http://vault.vault.svc.cluster.local:8200 \
-  --set secrets.vaultUsername=your-vault-username \
-  --set secrets.vaultPassword=your-vault-password
+  --set syncService.enabled=true \
+  --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
+  --set app.ecm.sraClientId="your-oauth-client-id" \
+  --set secrets.sraClientSecret="your-pra-client-secret" \
+  --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
+  --set secrets.vaultUsername="your-vault-username" \
+  --set secrets.vaultPassword="your-vault-password" \
+  --set app.vault.secretsEngine="secret"
+```
+
+**Or install using values file:**
+```bash
+helm install vault-sync ecm-plugin/ecm-plugin \
+  --version 2.1.0 \
+  -f https://raw.githubusercontent.com/pdasilva11/ecm-k8s-plugin/main/helm/ecm-plugin/values-sync.yaml \
+  --namespace vault-services \
+  --create-namespace
 ```
 
 ## Available Charts
@@ -73,30 +85,63 @@ The repository index is maintained at: [index.yaml](https://pdasilva11.github.io
 
 ## Quick Start Example
 
+### Option 1: Using --set flags (Recommended)
+
 1. **Add the Helm repository**
    ```bash
    helm repo add ecm-plugin https://pdasilva11.github.io/ecm-k8s-plugin/
+   helm repo update
    ```
 
-2. **Download the values file**
-   ```bash
-   curl -O https://raw.githubusercontent.com/pdasilva11/ecm-k8s-plugin/main/helm/ecm-plugin/values-sync.yaml
-   ```
-
-3. **Edit the values file** with your credentials
-
-4. **Install the chart**
+2. **Install the chart with your credentials**
    ```bash
    helm install vault-sync ecm-plugin/ecm-plugin \
+     --version 2.1.0 \
+     --namespace vault-services \
+     --create-namespace \
+     --set syncService.enabled=true \
+     --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
+     --set app.ecm.sraClientId="your-oauth-client-id" \
+     --set secrets.sraClientSecret="your-pra-client-secret" \
+     --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
+     --set secrets.vaultUsername="your-vault-username" \
+     --set secrets.vaultPassword="your-vault-password" \
+     --set app.vault.secretsEngine="secret"
+   ```
+
+3. **Verify the deployment**
+   ```bash
+   kubectl get pods -n vault-services -l component=sync
+   kubectl logs -n vault-services -l component=sync --tail=50
+   ```
+
+### Option 2: Using values file
+
+1. **Add the Helm repository**
+   ```bash
+   helm repo add ecm-plugin https://pdasilva11.github.io/ecm-k8s-plugin/
+   helm repo update
+   ```
+
+2. **Download and edit the values file**
+   ```bash
+   curl -O https://raw.githubusercontent.com/pdasilva11/ecm-k8s-plugin/main/helm/ecm-plugin/values-sync.yaml
+   # Edit values-sync.yaml with your credentials
+   ```
+
+3. **Install the chart**
+   ```bash
+   helm install vault-sync ecm-plugin/ecm-plugin \
+     --version 2.1.0 \
      -f values-sync.yaml \
      --namespace vault-services \
      --create-namespace
    ```
 
-5. **Verify the deployment**
+4. **Verify the deployment**
    ```bash
    kubectl get pods -n vault-services -l component=sync
-   kubectl logs -n vault-services -l component=sync
+   kubectl logs -n vault-services -l component=sync --tail=50
    ```
 
 ## Configuration
@@ -171,7 +216,30 @@ Common issues and solutions are documented in the [main README](https://github.c
 
 ## Chart Updates
 
-To update to the latest version:
+**Upgrade using --set flags:**
+```bash
+# Update repository and upgrade to latest version
+helm repo update
+
+# Upgrade with reuse of existing values
+helm upgrade vault-sync ecm-plugin/ecm-plugin \
+  --namespace vault-services \
+  --reuse-values \
+  --set syncService.image.tag=latest
+
+# Or upgrade with new configuration
+helm upgrade vault-sync ecm-plugin/ecm-plugin \
+  --namespace vault-services \
+  --set syncService.enabled=true \
+  --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
+  --set app.ecm.sraClientId="your-oauth-client-id" \
+  --set secrets.sraClientSecret="your-pra-client-secret" \
+  --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
+  --set secrets.vaultUsername="your-vault-username" \
+  --set secrets.vaultPassword="your-vault-password"
+```
+
+**Or upgrade using values file:**
 ```bash
 helm repo update
 helm upgrade vault-sync ecm-plugin/ecm-plugin \

@@ -81,18 +81,26 @@ This service provides seamless integration between HashiCorp Vault and BeyondTru
    helm repo add ecm-plugin https://pdasilva11.github.io/ecm-k8s-plugin/
    helm repo update
 
-   # Install v2.1.0
+   # Install v2.1.0 using --set flags
+   helm install vault-sync ecm-plugin/ecm-plugin \
+     --version 2.1.0 \
+     --namespace vault-services \
+     --create-namespace \
+     --set syncService.enabled=true \
+     --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
+     --set app.ecm.sraClientId="your-oauth-client-id" \
+     --set secrets.sraClientSecret="your-pra-client-secret" \
+     --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
+     --set secrets.vaultUsername="your-vault-username" \
+     --set secrets.vaultPassword="your-vault-password" \
+     --set app.vault.secretsEngine="secret"
+   ```
+
+   Or install using values file:
+   ```bash
    helm install vault-sync ecm-plugin/ecm-plugin \
      --version 2.1.0 \
      -f values-sync.yaml \
-     --namespace vault-services \
-     --create-namespace
-   ```
-
-   Or install from local chart:
-   ```bash
-   helm install vault-sync ./helm/ecm-plugin \
-     -f ./helm/ecm-plugin/values-sync.yaml \
      --namespace vault-services \
      --create-namespace
    ```
@@ -204,9 +212,30 @@ helm/ecm-plugin/
 
 ### Upgrading
 
+**Upgrade using --set flags:**
 ```bash
-helm upgrade vault-sync ./helm/ecm-plugin \
-  -f ./helm/ecm-plugin/values-sync.yaml \
+# Upgrade to latest version
+helm upgrade vault-sync ecm-plugin/ecm-plugin \
+  --namespace vault-services \
+  --reuse-values \
+  --set syncService.image.tag=latest
+
+# Or upgrade with new configuration
+helm upgrade vault-sync ecm-plugin/ecm-plugin \
+  --namespace vault-services \
+  --set syncService.enabled=true \
+  --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
+  --set app.ecm.sraClientId="your-oauth-client-id" \
+  --set secrets.sraClientSecret="your-pra-client-secret" \
+  --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
+  --set secrets.vaultUsername="your-vault-username" \
+  --set secrets.vaultPassword="your-vault-password"
+```
+
+**Or upgrade using values file:**
+```bash
+helm upgrade vault-sync ecm-plugin/ecm-plugin \
+  -f values-sync.yaml \
   --namespace vault-services
 ```
 
