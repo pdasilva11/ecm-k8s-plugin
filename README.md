@@ -2,7 +2,7 @@
 
 Intelligent credential synchronization service that syncs secrets from HashiCorp Vault to BeyondTrust PRA's internal vault with change detection.
 
-**Latest Version: v2.1.0** - Now with intelligent change detection using Vault metadata API!
+**Latest Version: v2.1.0** - Smart diff-based sync: only creates missing accounts!
 
 ## Overview
 
@@ -30,11 +30,11 @@ This service provides seamless integration between HashiCorp Vault and BeyondTru
 
 ## Features
 
-- **🔄 Intelligent Change Detection**: Uses Vault metadata API to detect secret version changes
-- **📊 Version Tracking**: Only syncs when secrets are modified, reducing API calls by ~95%
-- **⚡ Automated Sync**: Continuously syncs credentials every 5 minutes (configurable)
+- **🔄 Smart Diff-Based Sync**: Scans both vaults and syncs only missing accounts
+- **📊 Efficient Scanning**: Compares PRA and Vault every 5 minutes, creates only what's missing
+- **⚡ Automated Sync**: Continuously monitors and syncs credentials every 5 minutes (configurable)
 - **🔐 OAuth2 Authentication**: Secure authentication to BeyondTrust PRA
-- **📝 Enhanced Logging**: Clear visibility into new, changed, and unchanged secrets
+- **📝 Clear Logging**: Shows exactly what exists in each vault and what's being created
 - **💾 Persistent State**: Maintains sync state across pod restarts
 - **☸️ Kubernetes Native**: Deployed via Helm chart with best practices
 - **🚀 CI/CD Ready**: Automated Docker image builds via GitHub Actions
@@ -144,32 +144,45 @@ vault kv put secret/myapp-db username=dbuser password=secretpass123
 
 This will create a vault account in PRA named `myapp-db` with the specified credentials.
 
-## Change Detection
+## Sync Behavior
 
-**New in v2.1.0**: The sync service intelligently detects changes using Vault's metadata API.
+The sync service uses a **diff-based approach** to keep PRA vault in sync with HashiCorp Vault.
 
 ### How It Works
 
-1. **Metadata Check**: Uses `GET /v1/{mount}/metadata/{path}` to retrieve secret version
-2. **Version Comparison**: Compares current version with last synced version
-3. **Conditional Sync**: Only syncs if version has changed
-4. **State Persistence**: Saves sync state to `/tmp/sync_state.json`
+Every 5 minutes (configurable), the service:
+
+1. **Scans PRA Vault**: Gets list of all existing accounts in PRA
+2. **Scans HashiCorp Vault**: Gets list of all secrets in Vault
+3. **Compares**: Finds secrets that exist in Vault but NOT in PRA
+4. **Syncs Missing**: Creates only the accounts that are missing in PRA
 
 ### Benefits
 
-- **Reduced API Calls**: ~95% reduction after initial sync
-- **Faster Syncs**: Skips unchanged secrets
-- **Better Visibility**: Logs show new/changed/unchanged status
-- **Persistent State**: Survives pod restarts
+- **No Duplicates**: Never creates accounts that already exist
+- **Efficient**: Only creates what's missing, no unnecessary updates
+- **Clear Visibility**: Logs show exactly what exists and what's being created
+- **PRA as Source of Truth**: Existing PRA accounts are never modified or deleted
+- **Simple Logic**: Easy to understand and troubleshoot
 
 ### Example Log Output
 
 ```
-2026-02-04 01:25:10 - INFO - Checking 4 secrets for changes...
-2026-02-04 01:25:10 - INFO -   → New secret detected: myecm
-2026-02-04 01:25:10 - INFO -   → Version changed: test-credential (v1 → v2)
-2026-02-04 01:25:11 - DEBUG -   → No changes: test-credentials (v3)
-2026-02-04 01:25:11 - INFO - Sync complete: 2 synced, 1 unchanged, 0 failed
+2026-02-04 16:30:00 - INFO - Scanning PRA vault for existing accounts...
+2026-02-04 16:30:01 - INFO - Found 3 accounts in PRA vault: ['myecm', 'test-credential', 'test-credentials']
+2026-02-04 16:30:01 - INFO - Scanning HashiCorp Vault for secrets...
+2026-02-04 16:30:02 - INFO - Found 4 secrets in Vault: ['myecm', 'new-db-account', 'test-credential', 'test-credentials']
+2026-02-04 16:30:02 - INFO - Found 1 accounts missing in PRA: ['new-db-account']
+2026-02-04 16:30:02 - INFO - Creating missing account in PRA: new-db-account
+2026-02-04 16:30:03 - INFO - ✓ Successfully created PRA vault account: new-db-account
+2026-02-04 16:30:03 - INFO - Sync complete: 1 created, 0 failed
+```
+
+If all accounts are already synced:
+```
+2026-02-04 16:35:00 - INFO - Found 4 accounts in PRA vault: ['myecm', 'new-db-account', 'test-credential', 'test-credentials']
+2026-02-04 16:35:01 - INFO - Found 4 secrets in Vault: ['myecm', 'new-db-account', 'test-credential', 'test-credentials']
+2026-02-04 16:35:01 - INFO - ✓ All Vault secrets are already present in PRA - nothing to sync
 ```
 
 ## Docker Image

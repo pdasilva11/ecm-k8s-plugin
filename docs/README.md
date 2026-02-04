@@ -48,22 +48,22 @@ helm install vault-sync ecm-plugin/ecm-plugin \
 ## Available Charts
 
 ### ecm-plugin v2.1.0 (Latest) ⭐
-**Vault-to-PRA Sync Service** - Intelligent credential synchronization with change detection
+**Vault-to-PRA Sync Service** - Smart diff-based credential synchronization
 
 - **Version**: 2.1.0
 - **App Version**: 2.1.0
 - **Chart URL**: [ecm-plugin-2.1.0.tgz](https://pdasilva11.github.io/ecm-k8s-plugin/ecm-plugin-2.1.0.tgz)
-- **New in v2.1.0**:
-  - ✨ **Change detection** using Vault metadata API
-  - 📊 **Version tracking** - only syncs when secrets change
-  - 🚀 **~95% reduction** in API calls after initial sync
+- **Sync Behavior**:
+  - 🔄 **Diff-based sync** - scans both vaults and creates only missing accounts
+  - 📊 **Efficient** - no duplicate creation, no unnecessary updates
+  - 🚀 **Smart** - PRA vault is source of truth for existing accounts
   - 💾 **Persistent state** across pod restarts
-  - 📝 **Enhanced logging** - shows new/changed/unchanged secrets
+  - 📝 **Clear logging** - shows what exists vs what's being created
 - **Core Features**:
   - Python-based sync service
   - OAuth2 authentication to PRA
   - Continuous or one-time sync modes
-  - Automatic account creation/updates in PRA vault
+  - Automatic account creation for missing credentials
   - Kubernetes-native deployment
   - 5-minute sync interval (configurable)
 
@@ -169,26 +169,32 @@ The repository index is maintained at: [index.yaml](https://pdasilva11.github.io
 
 ## What's New in v2.1.0
 
-### Intelligent Change Detection
-The sync service now uses Vault's metadata API to detect changes:
+### Smart Diff-Based Sync
+The sync service uses an intelligent diff approach:
 
-```
-GET /v1/{mount}/metadata/{path}
-```
+**How it works:**
+1. Scans PRA vault for existing accounts
+2. Scans HashiCorp Vault for secrets
+3. Compares and finds accounts missing in PRA
+4. Creates only the missing accounts
 
 **Benefits:**
-- Only syncs secrets when version changes
-- Reduces PRA API calls by ~95% after initial sync
-- Faster sync cycles (skips unchanged secrets)
-- State persisted in `/tmp/sync_state.json`
+- No duplicate account creation
+- Only syncs what's actually missing
+- PRA vault remains source of truth for existing accounts
+- Clear visibility into what exists vs what's being created
+- Efficient - minimal API calls
 
 **Example Log Output:**
 ```
-Checking 4 secrets for changes...
-  → New secret detected: myecm
-  → Version changed: test-credential (v1 → v2)
-  → No changes: test-credentials (v1)
-Sync complete: 2 synced, 1 unchanged, 0 failed
+Scanning PRA vault for existing accounts...
+Found 3 accounts in PRA vault: ['myecm', 'test-credential', 'test-credentials']
+Scanning HashiCorp Vault for secrets...
+Found 4 secrets in Vault: ['myecm', 'new-db-account', 'test-credential', 'test-credentials']
+Found 1 accounts missing in PRA: ['new-db-account']
+Creating missing account in PRA: new-db-account
+✓ Successfully created PRA vault account: new-db-account
+Sync complete: 1 created, 0 failed
 ```
 
 ## Documentation
