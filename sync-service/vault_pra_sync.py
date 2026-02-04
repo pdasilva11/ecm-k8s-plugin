@@ -405,16 +405,30 @@ class VaultPRASync:
 
         # Step 3: Find secrets that exist in Vault but NOT in PRA
         missing_in_pra = vault_secret_names - pra_account_names
+        existing_in_both = vault_secret_names & pra_account_names
 
+        # Step 4: Ensure existing accounts are in the correct group
+        group_id = self.get_pra_account_group_id()
+        if group_id and existing_in_both:
+            logger.info(f"Ensuring {len(existing_in_both)} existing accounts are in correct group...")
+            for account_name in sorted(existing_in_both):
+                # Find the account ID
+                matching_account = next((acc for acc in pra_accounts if acc.get('name') == account_name), None)
+                if matching_account:
+                    account_id = matching_account.get('id')
+                    # Always bind to ensure it's in the correct group
+                    self.bind_account_to_group(account_id, account_name, group_id)
+
+        # Step 5: Sync missing accounts to PRA
         if not missing_in_pra:
-            logger.info("✓ All Vault secrets are already present in PRA - nothing to sync")
+            logger.info("✓ All Vault secrets are already present in PRA")
             logger.info("=" * 60)
             return True
 
         logger.info(f"Found {len(missing_in_pra)} accounts missing in PRA: {sorted(missing_in_pra)}")
         logger.info("Syncing missing accounts to PRA...")
 
-        # Step 4: Sync only the missing accounts to PRA
+        # Step 6: Create the missing accounts
         success_count = 0
         fail_count = 0
 
