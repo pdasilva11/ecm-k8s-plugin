@@ -26,6 +26,7 @@ class VaultPRASync:
         self.pra_hostname = os.getenv('PRA_HOSTNAME', 'pauldasilvapra.beyondtrustcloud.com')
         self.pra_client_id = os.getenv('PRA_CLIENT_ID')
         self.pra_client_secret = os.getenv('PRA_CLIENT_SECRET')
+        self.pra_account_group = os.getenv('PRA_ACCOUNT_GROUP', 'Default')  # Account group name or ID
 
         # HashiCorp Vault Configuration
         self.vault_url = os.getenv('VAULT_URL', 'http://vault.vault.svc.cluster.local:8200')
@@ -40,6 +41,7 @@ class VaultPRASync:
         self.pra_token = None
         self.vault_token = None
         self.sync_state = self._load_sync_state()
+        self.pra_account_group_id = None  # Will be resolved on first use
 
         self._validate_config()
 
@@ -235,9 +237,92 @@ class VaultPRASync:
             logger.error(f"Error deleting PRA vault account {account_name}: {e}")
             return False
 
-    def create_pra_vault_account(self, name: str, username: str, password: str) -> bool:
-        """Create account in PRA vault"""
+    def get_pra_account_groups(self) -> List[Dict]:
+        """Get all account groups from PRA"""
         try:
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account-group"
+            headers = {'Authorization': f'Bearer {self.pra_token}'}
+
+            response = requests.get(url, headers=headers, timeout=30)
+            response.raise_for_status()
+
+            groups = response.json()
+            logger.debug(f"Retrieved {len(groups)} account groups from PRA")
+            return groups
+
+        except Exception as e:
+            logger.error(f"Error getting PRA account groups: {e}")
+            return []
+
+    def get_pra_account_group_id(self) -> Optional[int]:
+        """Get account group ID by name or return the ID if already numeric"""
+        if self.pra_account_group_id is not None:
+            return self.pra_account_group_id
+
+        try:
+            # Check if the configured value is already a numeric ID
+            if self.pra_account_group.isdigit():
+                self.pra_account_group_id = int(self.pra_account_group)
+                logger.info(f"Using account group ID: {self.pra_account_group_id}")
+                return self.pra_account_group_id
+
+            # Otherwise, look up the group by name
+            logger.info(f"Looking up account group by name: {self.pra_account_group}")
+            groups = self.get_pra_account_groups()
+
+            for group in groups:
+                if group.get('name', '').lower() == self.pra_account_group.lower():
+                    self.pra_account_group_id = group.get('id')
+                    logger.info(f"Found account group '{self.pra_account_group}' with ID: {self.pra_account_group_id}")
+                    return self.pra_account_group_id
+
+            # If not found, list available groups
+            available_groups = [f"{g.get('name')} (ID: {g.get('id')})" for g in groups]
+            logger.error(f"Account group '{self.pra_account_group}' not found. Available groups: {available_groups}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error resolving account group ID: {e}")
+            return None
+
+    def bind_account_to_group(self, account_id: int, account_name: str, group_id: int) -> bool:
+        """Bind a vault account to an account group"""
+        try:
+            logger.info(f"Binding account '{account_name}' (ID: {account_id}) to group ID: {group_id}")
+
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account-group/{group_id}/account"
+            headers = {
+                'Authorization': f'Bearer {self.pra_token}',
+                'Content-Type': 'application/json'
+            }
+
+            payload = {
+                'account_id': account_id
+            }
+
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+
+            if response.status_code in [200, 201, 204]:
+                logger.info(f"✓ Successfully bound account '{account_name}' to group {group_id}")
+                return True
+            else:
+                logger.error(f"Failed to bind account to group: {response.status_code} - {response.text}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error binding account {account_name} to group: {e}")
+            return False
+
+    def create_pra_vault_account(self, name: str, username: str, password: str) -> bool:
+        """Create account in PRA vault and bind to configured account group"""
+        try:
+            # Step 1: Resolve account group ID if not already done
+            group_id = self.get_pra_account_group_id()
+            if not group_id:
+                logger.error(f"Cannot create account {name}: account group not configured properly")
+                return False
+
+            # Step 2: Create the vault account
             url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
 
             headers = {
@@ -251,15 +336,29 @@ class VaultPRASync:
                 'name': name,  # Required: account name (max 255 chars)
                 'username': username,  # Required: username (max 255 chars)
                 'password': password,  # Required: password (max 255 chars)
-                'description': f'Synced from HashiCorp Vault',  # Optional
-                'account_group_id': 1  # Optional: defaults to 1 (default group)
+                'description': f'Synced from HashiCorp Vault'  # Optional
             }
 
             response = requests.post(url, json=payload, headers=headers, timeout=30)
 
             if response.status_code == 201:
-                logger.info(f"✓ Successfully created PRA vault account: {name}")
-                return True
+                # Account created successfully, get the account ID
+                account_data = response.json()
+                account_id = account_data.get('id')
+
+                if not account_id:
+                    logger.error(f"Account {name} created but no ID returned")
+                    return False
+
+                logger.info(f"✓ Successfully created PRA vault account: {name} (ID: {account_id})")
+
+                # Step 3: Bind account to the configured group
+                if self.bind_account_to_group(account_id, name, group_id):
+                    return True
+                else:
+                    logger.warning(f"Account {name} created but failed to bind to group {group_id}")
+                    return True  # Account still created, just not in the right group
+
             elif response.status_code == 422:
                 # Account already exists (race condition or manual creation)
                 logger.warning(f"Account {name} already exists in PRA (422), skipping")

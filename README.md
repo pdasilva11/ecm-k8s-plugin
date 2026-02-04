@@ -89,6 +89,7 @@ This service provides seamless integration between HashiCorp Vault and BeyondTru
      --set syncService.enabled=true \
      --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
      --set app.ecm.sraClientId="your-oauth-client-id" \
+     --set app.ecm.accountGroup="Default" \
      --set secrets.sraClientSecret="your-pra-client-secret" \
      --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
      --set secrets.vaultUsername="your-vault-username" \
@@ -125,6 +126,7 @@ The sync service accepts the following configuration:
 | `PRA_HOSTNAME` | PRA instance hostname | - |
 | `PRA_CLIENT_ID` | OAuth2 client ID | - |
 | `PRA_CLIENT_SECRET` | OAuth2 client secret | - |
+| `PRA_ACCOUNT_GROUP` | PRA account group name or ID | `Default` |
 | `VAULT_URL` | Vault API endpoint | `http://vault.vault.svc.cluster.local:8200` |
 | `VAULT_USERNAME` | Vault userpass username | `root` |
 | `VAULT_PASSWORD` | Vault userpass password | - |
@@ -143,6 +145,35 @@ vault kv put secret/myapp-db username=dbuser password=secretpass123
 ```
 
 This will create a vault account in PRA named `myapp-db` with the specified credentials.
+
+### Account Groups
+
+The sync service can automatically assign created accounts to a specific PRA account group:
+
+**Configuration:**
+```bash
+# Use account group by name (recommended)
+export PRA_ACCOUNT_GROUP="Production Servers"
+
+# Or use account group by ID
+export PRA_ACCOUNT_GROUP="5"
+```
+
+**How it works:**
+1. On first sync, the service queries PRA for available account groups: `GET /vault/account-group`
+2. Finds the group matching the configured name (case-insensitive) or ID
+3. When creating a new account, it binds the account to the group: `POST /vault/account-group/{id}/account`
+
+**Example log output:**
+```
+Looking up account group by name: Production Servers
+Found account group 'Production Servers' with ID: 5
+✓ Successfully created PRA vault account: myapp-db (ID: 123)
+Binding account 'myapp-db' (ID: 123) to group ID: 5
+✓ Successfully bound account 'myapp-db' to group 5
+```
+
+If the configured group is not found, the service will log available groups and fail to create accounts.
 
 ## Sync Behavior
 
@@ -239,6 +270,7 @@ helm upgrade vault-sync ecm-plugin/ecm-plugin \
   --set syncService.enabled=true \
   --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
   --set app.ecm.sraClientId="your-oauth-client-id" \
+  --set app.ecm.accountGroup="Default" \
   --set secrets.sraClientSecret="your-pra-client-secret" \
   --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
   --set secrets.vaultUsername="your-vault-username" \

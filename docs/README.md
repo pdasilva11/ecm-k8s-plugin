@@ -29,6 +29,7 @@ helm install vault-sync ecm-plugin/ecm-plugin \
   --set syncService.enabled=true \
   --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
   --set app.ecm.sraClientId="your-oauth-client-id" \
+  --set app.ecm.accountGroup="Default" \
   --set secrets.sraClientSecret="your-pra-client-secret" \
   --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
   --set secrets.vaultUsername="your-vault-username" \
@@ -239,6 +240,7 @@ helm upgrade vault-sync ecm-plugin/ecm-plugin \
   --set syncService.enabled=true \
   --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
   --set app.ecm.sraClientId="your-oauth-client-id" \
+  --set app.ecm.accountGroup="Default" \
   --set secrets.sraClientSecret="your-pra-client-secret" \
   --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
   --set secrets.vaultUsername="your-vault-username" \

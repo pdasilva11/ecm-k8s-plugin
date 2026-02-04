@@ -39,6 +39,8 @@ spec:
             secretKeyRef:
               name: {{ include "ecm-plugin.fullname" . }}-credentials
               key: sra-client-secret
+        - name: PRA_ACCOUNT_GROUP
+          value: {{ .Values.app.ecm.accountGroup | default "Default" | quote }}
         # HashiCorp Vault Configuration
         - name: VAULT_URL
           value: {{ .Values.app.vault.baseUrl | quote }}
