@@ -155,14 +155,25 @@ The sync service accepts the following configuration (set automatically via Helm
 
 ### Secret Format
 
-Secrets in HashiCorp Vault must contain `username` and `password` fields:
+The sync service automatically detects the secret type and creates the appropriate account in PRA:
+
+**Username/Password Secrets** — If the secret contains both `username` and `password` fields, it creates a `username_password` account:
 
 ```bash
-# Example: Create a secret in Vault
+# Creates a username_password account in PRA
 vault kv put secret/myapp-db username=dbuser password=secretpass123
 ```
 
-This will create a vault account in PRA named `myapp-db` with the specified credentials.
+**Opaque Token Secrets** — If the secret does NOT contain both `username` and `password`, it creates an `opaque_token` account. The service looks for a token value in the following fields (in order): `token`, `api_key`, `secret`, `key`, `access_token`, `api_token`. If none are found, it uses the first non-empty string value.
+
+```bash
+# Creates an opaque_token account in PRA
+vault kv put secret/my-api-token token="ghp_1234567890abcdef"
+
+# Also works with other field names
+vault kv put secret/aws-key api_key="AKIAIOSFODNN7EXAMPLE"
+vault kv put secret/service-secret secret="my-secret-value"
+```
 
 ### Account Groups
 
