@@ -313,10 +313,28 @@ class VaultPRASync:
             logger.error(f"Error binding account {account_name} to group: {e}")
             return False
 
-    def update_pra_vault_account(self, account_id: int, name: str, username: str, password: str) -> bool:
+    def _detect_secret_type(self, secret_data: Dict) -> str:
+        """Detect whether a Vault secret is username_password or opaque_token"""
+        if secret_data.get('username') and secret_data.get('password'):
+            return 'username_password'
+        return 'opaque_token'
+
+    def _get_opaque_token(self, secret_data: Dict) -> Optional[str]:
+        """Extract token value from a Vault secret for opaque_token type"""
+        # Check for common token field names
+        for key in ['token', 'api_key', 'secret', 'key', 'access_token', 'api_token']:
+            if secret_data.get(key):
+                return secret_data[key]
+        # Fall back to first non-empty value
+        for key, value in secret_data.items():
+            if value and isinstance(value, str):
+                return value
+        return None
+
+    def update_pra_vault_account(self, account_id: int, name: str, secret_data: Dict, account_type: str) -> bool:
         """Update an existing PRA vault account with new credentials"""
         try:
-            logger.info(f"Updating PRA vault account: {name} (ID: {account_id})")
+            logger.info(f"Updating PRA vault account: {name} (ID: {account_id}, type: {account_type})")
 
             url = f"https://{self.pra_hostname}/api/config/v1/vault/account/{account_id}"
             headers = {
@@ -324,10 +342,16 @@ class VaultPRASync:
                 'Content-Type': 'application/json'
             }
 
-            payload = {
-                'username': username,
-                'password': password
-            }
+            if account_type == 'username_password':
+                payload = {
+                    'username': secret_data.get('username'),
+                    'password': secret_data.get('password')
+                }
+            else:
+                token = self._get_opaque_token(secret_data)
+                payload = {
+                    'token': token
+                }
 
             response = requests.patch(url, json=payload, headers=headers, timeout=30)
 
@@ -342,7 +366,7 @@ class VaultPRASync:
             logger.error(f"Error updating PRA vault account {name}: {e}")
             return False
 
-    def create_pra_vault_account(self, name: str, username: str, password: str) -> bool:
+    def create_pra_vault_account(self, name: str, secret_data: Dict) -> bool:
         """Create account in PRA vault and bind to configured account group"""
         try:
             # Step 1: Resolve account group ID if not already done
@@ -351,27 +375,39 @@ class VaultPRASync:
                 logger.error(f"Cannot create account {name}: account group not configured properly")
                 return False
 
-            # Step 2: Create the vault account
-            url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
+            # Step 2: Detect secret type and build payload
+            account_type = self._detect_secret_type(secret_data)
 
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account"
             headers = {
                 'Authorization': f'Bearer {self.pra_token}',
                 'Content-Type': 'application/json'
             }
 
-            # Payload according to VaultUsernamePasswordAccount schema
-            payload = {
-                'type': 'username_password',  # Required: account type
-                'name': name,  # Required: account name (max 255 chars)
-                'username': username,  # Required: username (max 255 chars)
-                'password': password,  # Required: password (max 255 chars)
-                'description': f'Synced from HashiCorp Vault'  # Optional
-            }
+            if account_type == 'username_password':
+                payload = {
+                    'type': 'username_password',
+                    'name': name,
+                    'username': secret_data.get('username'),
+                    'password': secret_data.get('password'),
+                    'description': 'Synced from HashiCorp Vault'
+                }
+            else:
+                token = self._get_opaque_token(secret_data)
+                if not token:
+                    logger.warning(f"Skipping {name}: no usable token value found")
+                    return False
+                payload = {
+                    'type': 'opaque_token',
+                    'name': name,
+                    'token': token,
+                    'description': 'Synced from HashiCorp Vault'
+                }
 
+            logger.info(f"Creating PRA account '{name}' as {account_type}")
             response = requests.post(url, json=payload, headers=headers, timeout=30)
 
             if response.status_code == 201:
-                # Account created successfully, get the account ID
                 account_data = response.json()
                 account_id = account_data.get('id')
 
@@ -379,17 +415,16 @@ class VaultPRASync:
                     logger.error(f"Account {name} created but no ID returned")
                     return False
 
-                logger.info(f"✓ Successfully created PRA vault account: {name} (ID: {account_id})")
+                logger.info(f"✓ Successfully created PRA vault account: {name} (ID: {account_id}, type: {account_type})")
 
                 # Step 3: Bind account to the configured group
                 if self.bind_account_to_group(account_id, name, group_id):
                     return True
                 else:
                     logger.warning(f"Account {name} created but failed to bind to group {group_id}")
-                    return True  # Account still created, just not in the right group
+                    return True
 
             elif response.status_code == 422:
-                # Account already exists (race condition or manual creation)
                 logger.warning(f"Account {name} already exists in PRA (422), skipping")
                 return True
             else:
@@ -466,20 +501,18 @@ class VaultPRASync:
                     logger.debug(f"Account {account_name} unchanged (version {current_version})")
                     continue
 
-                # Version changed or no previous state — update password in PRA
+                # Version changed or no previous state — update credentials in PRA
                 logger.info(f"Detected change for {account_name}: version {last_version} → {current_version}")
                 secret_data = self.get_vault_secret(account_name)
                 if not secret_data:
                     continue
 
-                username = secret_data.get('username', '')
-                password = secret_data.get('password', '')
-
-                if not username or not password:
-                    logger.warning(f"Skipping update for {account_name}: missing username or password")
+                account_type = self._detect_secret_type(secret_data)
+                if account_type == 'opaque_token' and not self._get_opaque_token(secret_data):
+                    logger.warning(f"Skipping update for {account_name}: no usable token value")
                     continue
 
-                if self.update_pra_vault_account(account_id, account_name, username, password):
+                if self.update_pra_vault_account(account_id, account_name, secret_data, account_type):
                     self.sync_state[account_name] = {
                         'version': current_version,
                         'updated_time': metadata.get('updated_time'),
@@ -503,16 +536,14 @@ class VaultPRASync:
                     fail_count += 1
                     continue
 
-                username = secret_data.get('username', '')
-                password = secret_data.get('password', '')
-
-                if not username or not password:
-                    logger.warning(f"Skipping {secret_path}: missing username or password")
+                account_type = self._detect_secret_type(secret_data)
+                if account_type == 'opaque_token' and not self._get_opaque_token(secret_data):
+                    logger.warning(f"Skipping {secret_path}: no usable token value")
                     fail_count += 1
                     continue
 
                 logger.info(f"Creating missing account in PRA: {secret_path}")
-                if self.create_pra_vault_account(secret_path, username, password):
+                if self.create_pra_vault_account(secret_path, secret_data):
                     metadata = self.get_vault_secret_metadata(secret_path)
                     if metadata:
                         self.sync_state[secret_path] = {
