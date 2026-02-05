@@ -313,6 +313,35 @@ class VaultPRASync:
             logger.error(f"Error binding account {account_name} to group: {e}")
             return False
 
+    def update_pra_vault_account(self, account_id: int, name: str, username: str, password: str) -> bool:
+        """Update an existing PRA vault account with new credentials"""
+        try:
+            logger.info(f"Updating PRA vault account: {name} (ID: {account_id})")
+
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account/{account_id}"
+            headers = {
+                'Authorization': f'Bearer {self.pra_token}',
+                'Content-Type': 'application/json'
+            }
+
+            payload = {
+                'username': username,
+                'password': password
+            }
+
+            response = requests.patch(url, json=payload, headers=headers, timeout=30)
+
+            if response.status_code in [200, 201, 204]:
+                logger.info(f"✓ Successfully updated PRA vault account: {name} (ID: {account_id})")
+                return True
+            else:
+                logger.error(f"Failed to update PRA account {name}: {response.status_code} - {response.text}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error updating PRA vault account {name}: {e}")
+            return False
+
     def create_pra_vault_account(self, name: str, username: str, password: str) -> bool:
         """Create account in PRA vault and bind to configured account group"""
         try:
@@ -407,68 +436,101 @@ class VaultPRASync:
         missing_in_pra = vault_secret_names - pra_account_names
         existing_in_both = vault_secret_names & pra_account_names
 
-        # Step 4: Ensure existing accounts are in the correct group
+        # Step 4: Ensure existing accounts are in the correct group and detect password changes
         group_id = self.get_pra_account_group_id()
-        if group_id and existing_in_both:
-            logger.info(f"Ensuring {len(existing_in_both)} existing accounts are in correct group...")
+        update_count = 0
+
+        if existing_in_both:
+            logger.info(f"Checking {len(existing_in_both)} existing accounts for group and password changes...")
             for account_name in sorted(existing_in_both):
-                # Find the account ID
                 matching_account = next((acc for acc in pra_accounts if acc.get('name') == account_name), None)
-                if matching_account:
-                    account_id = matching_account.get('id')
-                    # Always bind to ensure it's in the correct group
+                if not matching_account:
+                    continue
+
+                account_id = matching_account.get('id')
+
+                # Ensure correct group
+                if group_id:
                     self.bind_account_to_group(account_id, account_name, group_id)
 
-        # Step 5: Sync missing accounts to PRA
-        if not missing_in_pra:
-            logger.info("✓ All Vault secrets are already present in PRA")
-            logger.info("=" * 60)
-            return True
+                # Check if Vault secret has changed since last sync
+                metadata = self.get_vault_secret_metadata(account_name)
+                if not metadata:
+                    continue
 
-        logger.info(f"Found {len(missing_in_pra)} accounts missing in PRA: {sorted(missing_in_pra)}")
-        logger.info("Syncing missing accounts to PRA...")
+                last_state = self.sync_state.get(account_name, {})
+                last_version = last_state.get('version')
+                current_version = metadata.get('version')
 
-        # Step 6: Create the missing accounts
-        success_count = 0
-        fail_count = 0
+                if last_version is not None and current_version == last_version:
+                    logger.debug(f"Account {account_name} unchanged (version {current_version})")
+                    continue
 
-        for secret_path in sorted(missing_in_pra):
-            # Get the secret data from Vault
-            secret_data = self.get_vault_secret(secret_path)
+                # Version changed or no previous state — update password in PRA
+                logger.info(f"Detected change for {account_name}: version {last_version} → {current_version}")
+                secret_data = self.get_vault_secret(account_name)
+                if not secret_data:
+                    continue
 
-            if not secret_data:
-                logger.warning(f"Skipping {secret_path}: no data in Vault")
-                fail_count += 1
-                continue
+                username = secret_data.get('username', '')
+                password = secret_data.get('password', '')
 
-            username = secret_data.get('username', '')
-            password = secret_data.get('password', '')
+                if not username or not password:
+                    logger.warning(f"Skipping update for {account_name}: missing username or password")
+                    continue
 
-            if not username or not password:
-                logger.warning(f"Skipping {secret_path}: missing username or password")
-                fail_count += 1
-                continue
-
-            # Create account in PRA (this will not delete existing since it's missing)
-            logger.info(f"Creating missing account in PRA: {secret_path}")
-            if self.create_pra_vault_account(secret_path, username, password):
-                # Update sync state with current metadata
-                metadata = self.get_vault_secret_metadata(secret_path)
-                if metadata:
-                    self.sync_state[secret_path] = {
-                        'version': metadata.get('version'),
+                if self.update_pra_vault_account(account_id, account_name, username, password):
+                    self.sync_state[account_name] = {
+                        'version': current_version,
                         'updated_time': metadata.get('updated_time'),
                         'last_synced': time.time()
                     }
-                success_count += 1
-            else:
-                fail_count += 1
+                    update_count += 1
+
+        # Step 5: Create missing accounts in PRA
+        created_count = 0
+        fail_count = 0
+
+        if missing_in_pra:
+            logger.info(f"Found {len(missing_in_pra)} accounts missing in PRA: {sorted(missing_in_pra)}")
+            logger.info("Syncing missing accounts to PRA...")
+
+            for secret_path in sorted(missing_in_pra):
+                secret_data = self.get_vault_secret(secret_path)
+
+                if not secret_data:
+                    logger.warning(f"Skipping {secret_path}: no data in Vault")
+                    fail_count += 1
+                    continue
+
+                username = secret_data.get('username', '')
+                password = secret_data.get('password', '')
+
+                if not username or not password:
+                    logger.warning(f"Skipping {secret_path}: missing username or password")
+                    fail_count += 1
+                    continue
+
+                logger.info(f"Creating missing account in PRA: {secret_path}")
+                if self.create_pra_vault_account(secret_path, username, password):
+                    metadata = self.get_vault_secret_metadata(secret_path)
+                    if metadata:
+                        self.sync_state[secret_path] = {
+                            'version': metadata.get('version'),
+                            'updated_time': metadata.get('updated_time'),
+                            'last_synced': time.time()
+                        }
+                    created_count += 1
+                else:
+                    fail_count += 1
+        else:
+            logger.info("✓ All Vault secrets are already present in PRA")
 
         # Save sync state after processing all secrets
         self._save_sync_state()
 
         logger.info("=" * 60)
-        logger.info(f"Sync complete: {success_count} created, {fail_count} failed")
+        logger.info(f"Sync complete: {created_count} created, {update_count} updated, {fail_count} failed")
         logger.info("=" * 60)
 
         return fail_count == 0
