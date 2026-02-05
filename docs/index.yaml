@@ -2,8 +2,29 @@ apiVersion: v1
 entries:
   ecm-plugin:
   - apiVersion: v2
+    appVersion: 2.2.0
+    created: "2026-02-05T18:27:54.674955022Z"
+    description: HashiCorp Vault to BeyondTrust PRA Sync Service - Intelligent credential
+      synchronization with change detection
+    digest: e0e2c64ce65422f623dfa1e0f89c3baa343d57bae9887c3ecfdae65b0456d154
+    home: https://github.com/pdasilva11/ecm-k8s-plugin
+    keywords:
+    - ecm
+    - vault
+    - credentials
+    - security
+    maintainers:
+    - name: ECM Team
+    name: ecm-plugin
+    sources:
+    - https://github.com/pdasilva11/ecm-k8s-plugin
+    type: application
+    urls:
+    - https://pdasilva11.github.io/ecm-k8s-plugin/ecm-plugin-2.2.0.tgz
+    version: 2.2.0
+  - apiVersion: v2
     appVersion: 2.1.0
-    created: "2026-02-04T01:27:44.087465922Z"
+    created: "2026-02-05T18:27:54.673770098Z"
     description: HashiCorp Vault to BeyondTrust PRA Sync Service - Intelligent credential
       synchronization with change detection
     digest: 4d141752333bee74c26f2c79e4bd4d18c1e3ae501c6f907d1da52125fd213ec4
@@ -24,7 +45,7 @@ entries:
     version: 2.1.0
   - apiVersion: v2
     appVersion: 2.0.0
-    created: "2026-02-04T01:27:44.080558121Z"
+    created: "2026-02-05T18:27:54.672574601Z"
     description: A Helm chart for BeyondTrust ECM SDK Plugin with HashiCorp Vault
     digest: a037176ce596ec9f2becc06ddfd02c9dcf7910ddffbf31e471b8705185a40f3f
     home: https://github.com/pdasilva11/ecm-k8s-plugin
@@ -44,7 +65,7 @@ entries:
     version: 2.0.0
   - apiVersion: v2
     appVersion: 1.0.0
-    created: "2026-02-04T01:27:44.075425347Z"
+    created: "2026-02-05T18:27:54.671001576Z"
     description: A Helm chart for ECM Kubernetes Plugin - Vault Credential Service
     digest: 5dfb0dc9a1f6ced7981f4057e361b9557881ff1fc13539792d42f1671e352773
     home: https://github.com/pdasilva11/ecm-k8s-plugin
@@ -62,4 +83,4 @@ entries:
     urls:
     - https://pdasilva11.github.io/ecm-k8s-plugin/ecm-plugin-1.1.0.tgz
     version: 1.1.0
-generated: "2026-02-04T01:27:44.060489883Z"
+generated: "2026-02-05T18:27:54.668296911Z"
