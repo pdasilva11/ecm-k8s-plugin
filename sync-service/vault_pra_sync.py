@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class VaultPRASync:
     def __init__(self):
         # PRA Configuration
-        self.pra_hostname = os.getenv('PRA_HOSTNAME', 'pauldasilvapra.beyondtrustcloud.com')
+        self.pra_hostname = os.getenv('PRA_HOSTNAME', 'site.example.com')
         self.pra_client_id = os.getenv('PRA_CLIENT_ID')
         self.pra_client_secret = os.getenv('PRA_CLIENT_SECRET')
         self.pra_account_group = os.getenv('PRA_ACCOUNT_GROUP', 'Default')  # Account group name or ID
@@ -286,21 +286,21 @@ class VaultPRASync:
             return None
 
     def bind_account_to_group(self, account_id: int, account_name: str, group_id: int) -> bool:
-        """Bind a vault account to an account group"""
+        """Bind a vault account to an account group by updating its account_group_id"""
         try:
             logger.info(f"Binding account '{account_name}' (ID: {account_id}) to group ID: {group_id}")
 
-            url = f"https://{self.pra_hostname}/api/config/v1/vault/account-group/{group_id}/account"
+            url = f"https://{self.pra_hostname}/api/config/v1/vault/account/{account_id}"
             headers = {
                 'Authorization': f'Bearer {self.pra_token}',
                 'Content-Type': 'application/json'
             }
 
             payload = {
-                'account_id': account_id
+                'account_group_id': group_id
             }
 
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            response = requests.patch(url, json=payload, headers=headers, timeout=30)
 
             if response.status_code in [200, 201, 204]:
                 logger.info(f"✓ Successfully bound account '{account_name}' to group {group_id}")
