@@ -1,6 +1,8 @@
 # ECM Kubernetes Plugin - Helm Charts
 
-Production-ready Helm chart for deploying the ECM Plugin Vault Credential Service to Kubernetes.
+Production-ready Helm chart for deploying the HashiCorp Vault to BeyondTrust PRA Sync Service to Kubernetes.
+
+**Latest Chart Version: v2.2.0**
 
 ## 📁 Directory Structure
 
@@ -9,6 +11,7 @@ helm/
 ├── ecm-plugin/                      # Main Helm chart
 │   ├── Chart.yaml                   # Chart metadata
 │   ├── values.yaml                  # Default configuration values
+│   ├── values-sync.yaml             # Sync service values
 │   ├── values-development.yaml      # Development environment values
 │   ├── values-production.yaml       # Production environment values
 │   ├── .helmignore                  # Files to ignore when packaging
@@ -17,7 +20,8 @@ helm/
 │       ├── _helpers.tpl             # Template helper functions
 │       ├── NOTES.txt                # Post-installation notes
 │       ├── configmap.yaml           # Application configuration
-│       ├── deployment.yaml          # Application deployment
+│       ├── deployment.yaml          # Main ECM plugin deployment
+│       ├── sync-deployment.yaml     # Sync service deployment
 │       ├── service.yaml             # Kubernetes service
 │       ├── serviceaccount.yaml      # Service account
 │       ├── secret.yaml              # Vault credentials
@@ -33,48 +37,50 @@ helm/
 
 ## 🚀 Quick Start
 
-### Method 1: Install from GitHub Helm Repository (Recommended)
-
-Once the repository is set up (see [GITHUB_HOSTING.md](GITHUB_HOSTING.md)):
+### Install Sync Service from GitHub Helm Repository
 
 ```bash
 # Add the Helm repository
-helm repo add ecm-plugin https://pdasilva11.github.io/ecm-k8s-plugin
-
-# Update repositories
+helm repo add ecm-plugin https://pdasilva11.github.io/ecm-k8s-plugin/
 helm repo update
 
-# Install the chart
+# Install the sync service (v2.2.0)
 helm install ecm-plugin ecm-plugin/ecm-plugin \
-  -n vault-services \
+  --version 2.2.0 \
+  --namespace vault-services \
   --create-namespace \
-  --set app.ecm.sraSiteHostname=pra.yourcompany.com \
-  --set app.ecm.sraClientId=your-pra-client-id \
-  --set secrets.sraClientSecret=your-pra-secret \
-  --set secrets.vaultUsername=your-vault-user \
-  --set secrets.vaultPassword=your-vault-password
+  --set replicaCount=0 \
+  --set autoscaling.enabled=false \
+  --set syncService.enabled=true \
+  --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
+  --set app.ecm.sraClientId="your-oauth-client-id" \
+  --set app.ecm.accountGroup="your-account-group-name" \
+  --set secrets.sraClientSecret="your-pra-client-secret" \
+  --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
+  --set secrets.vaultUsername="your-vault-username" \
+  --set secrets.vaultPassword="your-vault-password" \
+  --set app.vault.secretsEngine="secret"
 ```
 
-### Method 2: Install from Local Source
+### Upgrade
 
 ```bash
-# Clone the repository
-git clone https://github.com/pdasilva11/ecm-k8s-plugin.git
-cd ecm-k8s-plugin/helm
+helm repo update ecm-plugin
 
-# Development
-helm install ecm-plugin ./ecm-plugin -n vault-services --create-namespace
-
-# Production
-helm install ecm-plugin ./ecm-plugin \
-  -n vault-services \
-  --create-namespace \
-  -f ecm-plugin/values-production.yaml \
-  --set app.ecm.sraSiteHostname=pra.yourcompany.com \
-  --set app.ecm.sraClientId=your-pra-client-id \
-  --set secrets.sraClientSecret=your-pra-secret \
-  --set secrets.vaultUsername=your-vault-user \
-  --set secrets.vaultPassword=your-vault-password
+helm upgrade ecm-plugin ecm-plugin/ecm-plugin \
+  --version 2.2.0 \
+  --namespace vault-services \
+  --set replicaCount=0 \
+  --set autoscaling.enabled=false \
+  --set syncService.enabled=true \
+  --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
+  --set app.ecm.sraClientId="your-oauth-client-id" \
+  --set app.ecm.accountGroup="your-account-group-name" \
+  --set secrets.sraClientSecret="your-pra-client-secret" \
+  --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
+  --set secrets.vaultUsername="your-vault-username" \
+  --set secrets.vaultPassword="your-vault-password" \
+  --set app.vault.secretsEngine="secret"
 ```
 
 See [QUICKSTART.md](QUICKSTART.md) for more examples.
@@ -88,162 +94,42 @@ See [QUICKSTART.md](QUICKSTART.md) for more examples.
 
 ## ✨ Features
 
-### High Availability
-- ✅ Horizontal Pod Autoscaler (HPA) for automatic scaling
-- ✅ Pod Disruption Budget (PDB) for availability during updates
-- ✅ Pod anti-affinity rules to spread across nodes
-- ✅ Rolling update strategy for zero-downtime deployments
-- ✅ Configurable replica count (default: 2, production: 3+)
+### Sync Service
+- Syncs secrets from HashiCorp Vault (KV v2) to BeyondTrust PRA Vault
+- Auto-detects secret type: `username_password` or `opaque_token`
+- Version-based change detection — updates PRA when Vault secrets change
+- Assigns accounts to configurable PRA account groups
+- Continuous sync every 5 minutes (configurable)
 
 ### Security
-- ✅ Non-root container execution
-- ✅ Pod Security Context configuration
-- ✅ Network Policies for traffic control
-- ✅ RBAC (Role-Based Access Control)
-- ✅ Secret management for sensitive data
-- ✅ TLS/SSL support via Ingress
-
-### Observability
-- ✅ Prometheus metrics annotations
-- ✅ Startup, liveness, and readiness probes
-- ✅ Structured logging configuration
-- ✅ Resource requests and limits
+- Non-root container execution
+- Pod Security Context configuration
+- Secret management for credentials via Kubernetes Secrets
+- RBAC (Role-Based Access Control)
 
 ### Flexibility
-- ✅ Multiple environment configurations (dev, staging, prod)
-- ✅ Configurable ingress with TLS
-- ✅ Customizable resource limits
-- ✅ Support for NodeSelector, tolerations, and affinity
-- ✅ Parameterized configuration via values.yaml
+- Configurable sync interval
+- Configurable PRA account group
+- Support for multiple secret types
+- CI/CD ready with automated Docker image builds
 
-## 🎯 Key Components
+## 📝 Helm `--set` Flags Reference
 
-### 1. Deployment
-- Manages application pods with configurable replicas
-- Includes health probes and resource management
-- Supports rolling updates and rollbacks
-
-### 2. Service
-- ClusterIP service with session affinity
-- Routes traffic to application pods
-- Configurable port mappings
-
-### 3. Ingress
-- Optional ingress with TLS support
-- Configurable hostname and paths
-- Nginx ingress controller annotations
-
-### 4. ConfigMap & Secrets
-- Application configuration via ConfigMap
-- Secure credential storage in Secrets
-- Environment-specific settings
-
-### 5. Autoscaling (HPA)
-- CPU and memory-based autoscaling
-- Configurable min/max replicas
-- Custom target utilization percentages
-
-### 6. Security Resources
-- ServiceAccount for pod identity
-- RBAC for Kubernetes API access
-- NetworkPolicy for traffic control
-
-## 📝 Configuration
-
-### Common Configurations
-
-```yaml
-# Scaling
-replicaCount: 3
-autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 20
-
-# Image
-image:
-  repository: pdasilva1/ecm-k8s-plugin
-  tag: "v1.0.0"
-  pullPolicy: IfNotPresent
-
-# Resources
-resources:
-  limits:
-    cpu: 1000m
-    memory: 1Gi
-  requests:
-    cpu: 250m
-    memory: 512Mi
-
-# Application Configuration
-app:
-  # BeyondTrust PRA/SRA Configuration
-  ecm:
-    sraSiteHostname: "pra.yourcompany.com"
-    sraClientId: "your-pra-client-id"
-
-  # HashiCorp Vault Configuration
-  vault:
-    baseUrl: "https://vault.yourcompany.com:8200"
-    secretsEngine: "secret"
-
-secrets:
-  # BeyondTrust PRA credentials
-  sraClientSecret: "your-pra-client-secret"
-
-  # HashiCorp Vault credentials
-  vaultUsername: "your-vault-username"
-  vaultPassword: "your-vault-password"
-
-# Ingress
-ingress:
-  enabled: true
-  hosts:
-    - host: vault-api.yourcompany.com
-      paths:
-        - path: /
-          pathType: Prefix
-```
-
-## 🔧 Installation Methods
-
-### Method 1: Default Values
-```bash
-helm install ecm-plugin ./ecm-plugin -n vault-services --create-namespace
-```
-
-### Method 2: Custom Values File
-```bash
-helm install ecm-plugin ./ecm-plugin \
-  -n vault-services \
-  --create-namespace \
-  -f my-values.yaml
-```
-
-### Method 3: Set Individual Values
-```bash
-helm install ecm-plugin ./ecm-plugin \
-  -n vault-services \
-  --create-namespace \
-  --set replicaCount=3 \
-  --set image.tag=v1.0.0
-```
-
-### Method 4: Environment-Specific
-```bash
-# Development
-helm install ecm-plugin ./ecm-plugin -f ecm-plugin/values-development.yaml -n dev
-
-# Production
-helm install ecm-plugin ./ecm-plugin -f ecm-plugin/values-production.yaml -n prod
-```
+| Flag | Description | Required |
+|------|-------------|----------|
+| `replicaCount=0` | Disable main ECM plugin (sync-only mode) | Yes |
+| `autoscaling.enabled=false` | Prevent HPA from overriding replicaCount | Yes |
+| `syncService.enabled=true` | Enable the sync service | Yes |
+| `app.ecm.sraSiteHostname` | PRA instance hostname | Yes |
+| `app.ecm.sraClientId` | PRA OAuth2 client ID | Yes |
+| `app.ecm.accountGroup` | PRA account group name or ID | Yes |
+| `secrets.sraClientSecret` | PRA OAuth2 client secret | Yes |
+| `app.vault.baseUrl` | HashiCorp Vault API endpoint | Yes |
+| `secrets.vaultUsername` | Vault username | Yes |
+| `secrets.vaultPassword` | Vault password | Yes |
+| `app.vault.secretsEngine` | KV v2 secrets engine path | Yes |
 
 ## 🔄 Maintenance
-
-### Upgrade
-```bash
-helm upgrade ecm-plugin ./ecm-plugin -n vault-services -f my-values.yaml
-```
 
 ### Rollback
 ```bash
@@ -253,6 +139,11 @@ helm rollback ecm-plugin -n vault-services
 ### Uninstall
 ```bash
 helm uninstall ecm-plugin -n vault-services
+```
+
+### Restart sync pod (after new Docker image)
+```bash
+kubectl rollout restart deployment vault-credential-service-sync -n vault-services
 ```
 
 ## 🐛 Troubleshooting
@@ -275,9 +166,9 @@ helm status ecm-plugin -n vault-services
 helm get all ecm-plugin -n vault-services
 ```
 
-### View Logs
+### View Sync Logs
 ```bash
-kubectl logs -n vault-services -l app=vault-credential-service --tail=100 -f
+kubectl logs -n vault-services -l component=sync --tail=100 -f
 ```
 
 ## 📋 Requirements
