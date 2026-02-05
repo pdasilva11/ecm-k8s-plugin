@@ -2,7 +2,7 @@
 
 Intelligent credential synchronization service that syncs secrets from HashiCorp Vault to BeyondTrust PRA's internal vault with change detection.
 
-**Latest Version: v2.1.0** - Smart diff-based sync: only creates missing accounts!
+**Latest Version: v2.2.0** - Smart diff-based sync with proper account group reassignment!
 
 ## Overview
 
@@ -81,15 +81,17 @@ This service provides seamless integration between HashiCorp Vault and BeyondTru
    helm repo add ecm-plugin https://pdasilva11.github.io/ecm-k8s-plugin/
    helm repo update
 
-   # Install v2.1.0 using --set flags
-   helm install vault-sync ecm-plugin/ecm-plugin \
-     --version 2.1.0 \
+   # Install v2.2.0 using --set flags
+   helm install ecm-plugin ecm-plugin/ecm-plugin \
+     --version 2.2.0 \
      --namespace vault-services \
      --create-namespace \
+     --set replicaCount=0 \
+     --set autoscaling.enabled=false \
      --set syncService.enabled=true \
      --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
      --set app.ecm.sraClientId="your-oauth-client-id" \
-     --set app.ecm.accountGroup="Default" \
+     --set app.ecm.accountGroup="your-account-group-name" \
      --set secrets.sraClientSecret="your-pra-client-secret" \
      --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
      --set secrets.vaultUsername="your-vault-username" \
@@ -99,8 +101,8 @@ This service provides seamless integration between HashiCorp Vault and BeyondTru
 
    Or install using values file:
    ```bash
-   helm install vault-sync ecm-plugin/ecm-plugin \
-     --version 2.1.0 \
+   helm install ecm-plugin ecm-plugin/ecm-plugin \
+     --version 2.2.0 \
      -f values-sync.yaml \
      --namespace vault-services \
      --create-namespace
@@ -117,9 +119,25 @@ This service provides seamless integration between HashiCorp Vault and BeyondTru
 
 ## Configuration
 
+### Helm `--set` Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `replicaCount` | Main ECM plugin replicas (set to `0` for sync-only) | `1` |
+| `autoscaling.enabled` | Enable HPA for main plugin (set to `false` for sync-only) | `true` |
+| `syncService.enabled` | Enable the sync service deployment | `false` |
+| `app.ecm.sraSiteHostname` | PRA instance hostname | - |
+| `app.ecm.sraClientId` | PRA OAuth2 client ID | - |
+| `app.ecm.accountGroup` | PRA account group name or ID | `Default` |
+| `secrets.sraClientSecret` | PRA OAuth2 client secret | - |
+| `app.vault.baseUrl` | HashiCorp Vault API endpoint | `http://vault.vault.svc.cluster.local:8200` |
+| `secrets.vaultUsername` | Vault userpass username | - |
+| `secrets.vaultPassword` | Vault userpass password | - |
+| `app.vault.secretsEngine` | KV v2 secrets engine path | `secret` |
+
 ### Environment Variables
 
-The sync service accepts the following configuration:
+The sync service accepts the following configuration (set automatically via Helm flags above):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -162,7 +180,7 @@ export PRA_ACCOUNT_GROUP="5"
 **How it works:**
 1. On first sync, the service queries PRA for available account groups: `GET /vault/account-group`
 2. Finds the group matching the configured name (case-insensitive) or ID
-3. When creating a new account, it binds the account to the group: `POST /vault/account-group/{id}/account`
+3. When creating or updating an account, it assigns the account to the group via: `PATCH /vault/account/{id}` with `account_group_id`
 
 **Example log output:**
 ```
@@ -258,28 +276,26 @@ helm/ecm-plugin/
 
 **Upgrade using --set flags:**
 ```bash
-# Upgrade to latest version
-helm upgrade vault-sync ecm-plugin/ecm-plugin \
+helm upgrade ecm-plugin ecm-plugin/ecm-plugin \
+  --version 2.2.0 \
   --namespace vault-services \
-  --reuse-values \
-  --set syncService.image.tag=latest
-
-# Or upgrade with new configuration
-helm upgrade vault-sync ecm-plugin/ecm-plugin \
-  --namespace vault-services \
+  --set replicaCount=0 \
+  --set autoscaling.enabled=false \
   --set syncService.enabled=true \
   --set app.ecm.sraSiteHostname="your-pra-instance.beyondtrustcloud.com" \
   --set app.ecm.sraClientId="your-oauth-client-id" \
-  --set app.ecm.accountGroup="Default" \
+  --set app.ecm.accountGroup="your-account-group-name" \
   --set secrets.sraClientSecret="your-pra-client-secret" \
   --set app.vault.baseUrl="http://vault.vault.svc.cluster.local:8200" \
   --set secrets.vaultUsername="your-vault-username" \
-  --set secrets.vaultPassword="your-vault-password"
+  --set secrets.vaultPassword="your-vault-password" \
+  --set app.vault.secretsEngine="secret"
 ```
 
 **Or upgrade using values file:**
 ```bash
-helm upgrade vault-sync ecm-plugin/ecm-plugin \
+helm upgrade ecm-plugin ecm-plugin/ecm-plugin \
+  --version 2.2.0 \
   -f values-sync.yaml \
   --namespace vault-services
 ```
